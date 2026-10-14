@@ -1,6 +1,31 @@
-@TourGuide.Api_HostAddress = http://localhost:5130
+@host = http://localhost:5130
 
-GET {{TourGuide.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### Kiểm tra LibreTranslate có dịch được vi -> en/zh/ja không
+GET {{host}}/languages/provider-check
 
-###
+### Danh sách ngôn ngữ
+GET {{host}}/languages
+
+### Thêm ngôn ngữ (để trống ttsVoice thì dùng giọng mặc định)
+POST {{host}}/languages
+Content-Type: application/json
+
+{ "code": "fr", "name": "Français", "ttsVoice": "fr-FR-DeniseNeural", "isActive": true }
+
+### Tạo job dịch + đọc cho địa điểm 1
+POST {{host}}/places/1/translate
+Content-Type: application/json
+
+{
+  "sourceText": "Xin chào, chào mừng bạn đến với Việt Nam.",
+  "languages": ["en", "ja"]
+}
+
+### Xem job (đổi số 1 thành mã job trả về)
+GET {{host}}/jobs/1
+
+### Danh sách job lỗi
+GET {{host}}/jobs?status=failed
+
+### Chạy lại job lỗi
+POST {{host}}/jobs/1/retry
