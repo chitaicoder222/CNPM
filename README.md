@@ -31,13 +31,23 @@ git clone <link-repo>
 cd <ten-repo>  # repo hien tai tren GitHub: CNPM
 copy .env.example .env
 dotnet restore
+dotnet user-secrets init --project src/TourGuide.Api
+dotnet user-secrets set "ConnectionStrings:Default" "server=localhost;port=3306;database=tourguide;user=tourguide;password=<MYSQL_PASSWORD>;SslMode=None" --project src/TourGuide.Api
+dotnet user-secrets set "Jwt:Secret" "<random-secret-at-least-32-characters>" --project src/TourGuide.Api
 dotnet build
 dotnet run --project src/TourGuide.Api
 ```
 
-Mo `http://localhost:5080/swagger` de xem API.
+Nếu MySQL local yêu cầu TLS tắt trong môi trường phát triển, thêm `;SslMode=None`
+vào connection string user-secrets (không commit chuỗi này). Mở
+`http://localhost:5130/` để xem trang demo hoặc `http://localhost:5130/swagger` để xem API.
 
-Tai lieu: `PROPOSAL.md`, `docs/API.md` (bang API), `docs/ISSUES.md` (danh sach cong viec).
+Docker Compose chạy API ở cổng `8080`; trong container, LibreTranslate dùng
+`http://libretranslate:5000/` và TTS cần Python cùng package `edge-tts`.
+
+MySQL volume note: `MYSQL_PASSWORD` is used when the volume is initialized. If `db_data` already exists, it must match the password already configured for the database user; Compose does not change that password on restart. Do not delete the volume to work around a mismatch.
+
+Tai lieu: `PROPOSAL.md`, `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/DEMO_CHECKLIST.md`, `docs/MYSQL_VOLUME.md`, `docs/PROVISIONING.md`, `docs/CD_STAGING.md`, `docs/E1_E4_RUNBOOK.md`.
 
 ## Quy uoc lam viec
 

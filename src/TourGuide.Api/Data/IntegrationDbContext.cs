@@ -8,6 +8,9 @@ public class IntegrationDbContext(
 ) : DbContext(options)
 {
     public DbSet<Language> Languages => Set<Language>();
+    public DbSet<Place> Places => Set<Place>();
+    public DbSet<NarrationContent> NarrationContents => Set<NarrationContent>();
+    public DbSet<AppUser> Users => Set<AppUser>();
 
     public DbSet<TranslationJob> Jobs => Set<TranslationJob>();
 
@@ -17,12 +20,18 @@ public class IntegrationDbContext(
 
         // Bang ngon ngu
         b.Entity<Language>().ToTable("languages");
+        b.Entity<Place>().ToTable("places");
+        b.Entity<NarrationContent>().ToTable("narration_contents");
+        b.Entity<AppUser>().ToTable("users");
 
         // Bang Job rieng cho module dich thuat va TTS
         b.Entity<TranslationJob>().ToTable("translation_jobs");
 
         b.Entity<Language>()
             .HasIndex(x => x.Code)
+            .IsUnique();
+        b.Entity<AppUser>()
+            .HasIndex(x => x.Email)
             .IsUnique();
 
         b.Entity<TranslationJob>()

@@ -78,6 +78,15 @@ public class JobWorker(IServiceScopeFactory scopes, ILogger<JobWorker> logger) :
                 case "tts":
                     job.AudioPath = await scope.ServiceProvider.GetRequiredService<TtsService>()
                         .GenerateAsync(job.SourceText, job.TargetLanguage, ct);
+                    if (job.ParentJobId is long parentId)
+                    {
+                        var parent = await db.Jobs.FindAsync(new object[] { parentId }, ct);
+                        if (parent != null)
+                        {
+                            parent.AudioPath = job.AudioPath;
+                            parent.Status = "done";
+                        }
+                    }
                     break;
 
                 default:
@@ -110,6 +119,7 @@ public class JobWorker(IServiceScopeFactory scopes, ILogger<JobWorker> logger) :
 
         db.Jobs.Add(new TranslationJob
         {
+            ParentJobId = job.Id,
             PlaceId = job.PlaceId,
             TargetLanguage = job.TargetLanguage,
             SourceText = text,

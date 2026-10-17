@@ -1,5 +1,7 @@
 # Module Bảo - Backend Integration (dịch, TTS, job, worker)
 
+> Trạng thái hiện tại: JWT, Place CRUD, seed địa điểm demo và frontend chọn địa điểm đã được tích hợp. Các giới hạn môi trường và bằng chứng chạy thật được ghi trong `docs/DEMO_CHECKLIST.md` và `docs/EXPERIMENTS.md`.
+
 ## Yêu cầu
 .NET 9 SDK, Docker (MySQL 8 + LibreTranslate), Python 3 với `edge-tts`.
 
@@ -12,7 +14,7 @@ edge-tts --list-voices        # kiểm tra lệnh chạy được và xem tên g
 ```
 dotnet tool restore                      # cài dotnet-ef đúng phiên bản (dotnet-tools.json)
 dotnet restore
-dotnet user-secrets set "ConnectionStrings:Default" "server=localhost;port=3306;database=tourguide;user=tourguide;password=<MYSQL_PASSWORD trong .env>" --project src/TourGuide.Api
+dotnet user-secrets set "ConnectionStrings:Default" "server=localhost;port=3306;database=tourguide;user=tourguide;password=<MYSQL_PASSWORD trong .env>;SslMode=None" --project src/TourGuide.Api
 dotnet ef database update --project src/TourGuide.Api
 dotnet run --project src/TourGuide.Api
 ```

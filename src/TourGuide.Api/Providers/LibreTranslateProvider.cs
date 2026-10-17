@@ -10,11 +10,14 @@ public class LibreTranslateProvider(HttpClient client, IConfiguration config) : 
 
     public async Task<string> TranslateAsync(string text, string source, string target, CancellationToken ct)
     {
+        // LibreTranslate commonly exposes Simplified Chinese as zh-Hans while
+        // the application keeps the short zh code for backwards compatibility.
+        var providerTarget = target.Equals("zh", StringComparison.OrdinalIgnoreCase) ? "zh-Hans" : target;
         var body = new Dictionary<string, string>
         {
             ["q"] = text,
             ["source"] = source,
-            ["target"] = target,
+            ["target"] = providerTarget,
             ["format"] = "text"
         };
         if (!string.IsNullOrWhiteSpace(_apiKey)) body["api_key"] = _apiKey;

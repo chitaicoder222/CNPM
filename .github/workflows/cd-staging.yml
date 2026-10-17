@@ -1,0 +1,33 @@
+name: CD staging (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Image tag to publish
+        required: true
+        default: latest
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: src/TourGuide.Api
+          file: src/TourGuide.Api/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/tourguide-api:${{ inputs.image_tag }}
+      - name: Staging handoff
+        run: echo "Image published. Deploy/rollback remains an environment-owner operation."

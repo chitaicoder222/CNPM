@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TourGuide.Api.Data;
+using Microsoft.AspNetCore.Authorization;
 using TourGuide.Api.Data.Entities;
 using TourGuide.Api.Providers;
 using TourGuide.Api.Services;
@@ -25,11 +24,11 @@ public class LanguageRequest
 // TODO(auth): GET công khai; POST/PUT chỉ Admin (thêm [Authorize(Roles = "admin")] khi An xong JWT).
 [ApiController]
 [Route("languages")]
-public class LanguagesController(IntegrationDbContext db, ITranslationProvider translator) : ControllerBase
+public class LanguagesController(LanguageService service, ITranslationProvider translator) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken ct) =>
-        Ok(await db.Languages.AsNoTracking().OrderBy(x => x.Code).ToListAsync(ct));
+        Ok(await service.ListAsync(ct));
 
     /// <summary>
     /// Kiểm tra LibreTranslate có dịch được từ tiếng Việt sang từng ngôn ngữ đang bật hay không
@@ -49,10 +48,13 @@ public class LanguagesController(IntegrationDbContext db, ITranslationProvider t
         }
 
         var source = provider.FirstOrDefault(x => x.Code == TranslationService.SourceLanguage);
-        var active = await db.Languages.AsNoTracking()
-            .Where(x => x.IsActive && x.Code != TranslationService.SourceLanguage)
-            .OrderBy(x => x.Code)
-            .ToListAsync(ct);
+        var active = (await service.ListAsync(ct)).Where(x => x.IsActive && x.Code != TranslationService.SourceLanguage).ToList();
+
+        bool SupportsFromVietnamese(string code) =>
+            source?.Targets.Contains(code, StringComparer.OrdinalIgnoreCase) == true
+            || (code.Equals("zh", StringComparison.OrdinalIgnoreCase)
+                && (source?.Targets.Contains("zh-Hans", StringComparer.OrdinalIgnoreCase) == true
+                    || source?.Targets.Contains("zh-Hant", StringComparer.OrdinalIgnoreCase) == true));
 
         return Ok(new
         {
@@ -61,7 +63,7 @@ public class LanguagesController(IntegrationDbContext db, ITranslationProvider t
             languages = active.Select(l => new
             {
                 l.Code,
-                canTranslateFromVi = source?.Targets.Contains(l.Code) == true,
+                canTranslateFromVi = SupportsFromVietnamese(l.Code),
                 ttsVoice = l.TtsVoice
             }),
             providerLanguages = provider.Select(p => p.Code)
@@ -69,39 +71,31 @@ public class LanguagesController(IntegrationDbContext db, ITranslationProvider t
     }
 
     [HttpPost]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Create([FromBody] LanguageRequest request, CancellationToken ct)
     {
         var code = request.Code.Trim().ToLowerInvariant();
-        if (await db.Languages.AnyAsync(x => x.Code == code, ct))
+        if (await service.ExistsAsync(code, ct))
             return Conflict($"Ngôn ngữ '{code}' đã tồn tại");
 
         var voice = string.IsNullOrWhiteSpace(request.TtsVoice)
             ? EdgeTtsProvider.DefaultVoiceFor(code) ?? ""
             : request.TtsVoice.Trim();
 
-        var lang = new Language
-        {
-            Code = code,
-            Name = request.Name.Trim(),
-            TtsVoice = voice,
-            IsActive = request.IsActive
-        };
-        db.Languages.Add(lang);
-        await db.SaveChangesAsync(ct);
+        var lang = await service.CreateAsync(code, request.Name, voice, request.IsActive, ct);
         return CreatedAtAction(nameof(List), lang);
     }
 
     [HttpPut("{id:int}")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> Update(int id, [FromBody] LanguageRequest request, CancellationToken ct)
     {
-        var lang = await db.Languages.FindAsync(new object[] { id }, ct);
+        var lang = await service.GetAsync(id, ct);
         if (lang == null) return NotFound();
 
         // Mã ngôn ngữ không đổi được vì job và bản dịch đang tham chiếu theo mã.
-        lang.Name = request.Name.Trim();
-        if (!string.IsNullOrWhiteSpace(request.TtsVoice)) lang.TtsVoice = request.TtsVoice.Trim();
-        lang.IsActive = request.IsActive;
-        await db.SaveChangesAsync(ct);
+        await service.UpdateAsync(id, request.Name, request.TtsVoice, request.IsActive, ct);
+        lang = await service.GetAsync(id, ct);
         return Ok(lang);
     }
 }

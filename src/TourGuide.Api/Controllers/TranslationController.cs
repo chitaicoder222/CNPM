@@ -18,7 +18,8 @@ public class TranslationController(JobService service) : ControllerBase
 
         try
         {
-            return Accepted(await service.CreateAsync(placeId, request.SourceText, request.Languages, ct));
+            var jobs = await service.CreateAsync(placeId, request.SourceText, request.Languages, ct);
+            return jobs.Count > 0 ? Accepted(jobs) : BadRequest("No job created");
         }
         catch (ArgumentException ex)
         {

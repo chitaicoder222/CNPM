@@ -10,7 +10,7 @@ namespace TourGuide.Api.Providers;
 public class EdgeTtsProvider(IConfiguration config) : ITtsProvider
 {
     private static readonly TimeSpan ProcessTimeout = TimeSpan.FromSeconds(90);
-    private readonly string _command = config["Tts:EdgeCommand"] ?? "edge-tts";
+    private readonly string _command = config["Tts:EdgeCommand"] ?? "python";
 
     private static readonly Dictionary<string, string> DefaultVoices = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -42,9 +42,16 @@ public class EdgeTtsProvider(IConfiguration config) : ITtsProvider
             UseShellExecute = false,
             CreateNoWindow = true
         };
+        var commandName = Path.GetFileNameWithoutExtension(_command);
+        if (commandName.Equals("python", StringComparison.OrdinalIgnoreCase)
+            || commandName.Equals("python3", StringComparison.OrdinalIgnoreCase)
+            || commandName.Equals("py", StringComparison.OrdinalIgnoreCase))
+        {
+            psi.ArgumentList.Add("-m");
+            psi.ArgumentList.Add("edge_tts");
+        }
         psi.ArgumentList.Add("--voice");
         psi.ArgumentList.Add(voice);
-        // Dạng --text=... để văn bản bắt đầu bằng dấu "-" không bị hiểu nhầm là tùy chọn.
         psi.ArgumentList.Add($"--text={text}");
         psi.ArgumentList.Add("--write-media");
         psi.ArgumentList.Add(outPath);

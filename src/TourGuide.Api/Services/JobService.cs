@@ -1,10 +1,9 @@
-using Microsoft.EntityFrameworkCore;
-using TourGuide.Api.Data;
 using TourGuide.Api.Data.Entities;
+using TourGuide.Api.Repositories;
 
 namespace TourGuide.Api.Services;
 
-public class JobService(IntegrationDbContext db)
+public class JobService(IJobRepository jobs, ILanguageRepository languageRepository)
 {
     public const int MaxSourceLength = 20000;
 
@@ -28,14 +27,10 @@ public class JobService(IntegrationDbContext db)
             if (code == TranslationService.SourceLanguage)
                 throw new ArgumentException($"'{code}' là ngôn ngữ gốc, không cần dịch");
 
-            if (!await db.Languages.AnyAsync(x => x.Code == code && x.IsActive, ct))
+            if (!await languageRepository.ExistsAsync(code, ct))
                 throw new ArgumentException($"Unsupported language: {code}");
 
-            var existing = await db.Jobs
-                .Where(x => x.PlaceId == placeId && x.TargetLanguage == code && x.SourceHash == hash
-                            && x.Type == "translate" && x.Status != "failed")
-                .OrderByDescending(x => x.Id)
-                .FirstOrDefaultAsync(ct);
+            var existing = await jobs.FindCachedAsync(placeId, code, hash, ct);
 
             if (existing != null)
             {
@@ -50,25 +45,24 @@ public class JobService(IntegrationDbContext db)
                 TargetLanguage = code,
                 SourceHash = hash
             };
-            db.Jobs.Add(job);
             result.Add(job);
         }
 
-        await db.SaveChangesAsync(ct);
+        await jobs.AddRangeAsync(result.Where(x => x.Id == 0), ct);
         return result;
     }
 
     /// <summary>Admin cho chạy lại job đã failed.</summary>
     public async Task<bool> RetryAsync(long id, CancellationToken ct)
     {
-        var job = await db.Jobs.FindAsync(new object[] { id }, ct);
+        var job = await jobs.GetByIdAsync(id, ct);
         if (job == null || job.Status != "failed") return false;
 
         job.Status = "pending";
         job.RetryCount = 0;
         job.LastError = null;
         job.RunAfter = DateTime.UtcNow;
-        await db.SaveChangesAsync(ct);
+        await jobs.UpdateAsync(job, ct);
         return true;
     }
 }
