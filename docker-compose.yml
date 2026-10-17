@@ -1,0 +1,63 @@
+services:
+  db:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-tourguide}
+      MYSQL_USER: ${MYSQL_USER:-tourguide}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - LT_UPDATE_MODELS=false
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/languages')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+
+  api:
+    build:
+      context: ./src/TourGuide.Api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      libretranslate:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: "server=db;port=3306;database=${MYSQL_DATABASE:-tourguide};user=${MYSQL_USER:-tourguide};password=${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}"
+      Jwt__Issuer: "TourGuide"
+      Jwt__Secret: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      LibreTranslate__BaseUrl: "http://libretranslate:5000/"
+      Tts__EdgeCommand: "edge-tts"
+      Storage__Root: "/app/storage"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./storage:/app/storage
+
+volumes:
+  db_data:

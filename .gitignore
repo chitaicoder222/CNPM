@@ -482,5 +482,5 @@ $RECYCLE.BIN/
 *.swp
 
 .env
-storage/audio/*
-!storage/audio/.gitkeep
+**/storage/audio/*
+!**/storage/audio/.gitkeep

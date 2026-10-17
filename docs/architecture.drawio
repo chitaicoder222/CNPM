@@ -1,0 +1,102 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Kien truc 3 lop" id="arch3">
+    <mxGraphModel dx="1471" dy="803" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="client" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" value="Du khách, Nhân viên, Admin&lt;br&gt;(Swagger, Postman, giao diện web)" vertex="1">
+          <mxGeometry height="56" width="340" x="60" as="geometry" />
+        </mxCell>
+        <mxCell id="l1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontStyle=1;fontSize=13;" value="LỚP 1 - Presentation (Controllers/, Middlewares/)" vertex="1">
+          <mxGeometry height="130" width="780" x="40" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="ctrl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#ffffff;strokeColor=#666666;fontSize=12;" value="Controllers&lt;br&gt;Auth, Place, Audio, Translation,&lt;br&gt;Job, Language, Health" vertex="1">
+          <mxGeometry height="80" width="340" x="60" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="mw" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#ffffff;strokeColor=#666666;fontSize=12;" value="Middlewares&lt;br&gt;Xử lý lỗi, JWT, rate limit" vertex="1">
+          <mxGeometry height="80" width="380" x="420" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="l2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontStyle=1;fontSize=13;" value="LỚP 2 - Business (Services/, Workers/, Utils/)" vertex="1">
+          <mxGeometry height="150" width="780" x="40" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="svc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#ffffff;strokeColor=#666666;fontSize=12;" value="Services&lt;br&gt;Auth, Place, Translation, Tts, Job, Language&lt;br&gt;(cache source_hash, retry)" vertex="1">
+          <mxGeometry height="90" width="340" x="60" y="325" as="geometry" />
+        </mxCell>
+        <mxCell id="wrk" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#ffffff;strokeColor=#666666;fontSize=12;" value="Workers&lt;br&gt;JobWorker (BackgroundService)&lt;br&gt;SKIP LOCKED, khôi phục job kẹt" vertex="1">
+          <mxGeometry height="90" width="210" x="420" y="325" as="geometry" />
+        </mxCell>
+        <mxCell id="utl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#ffffff;strokeColor=#666666;fontSize=12;" value="Utils&lt;br&gt;TextChunker, hash" vertex="1">
+          <mxGeometry height="90" width="150" x="650" y="325" as="geometry" />
+        </mxCell>
+        <mxCell id="l3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontStyle=1;fontSize=13;" value="LỚP 3 - Data Access (Repositories/, Data/)" vertex="1">
+          <mxGeometry height="130" width="780" x="40" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="repo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#ffffff;strokeColor=#666666;fontSize=12;" value="Repositories&lt;br&gt;User, Place, Translation, Audio, Job, Language" vertex="1">
+          <mxGeometry height="70" width="340" x="60" y="525" as="geometry" />
+        </mxCell>
+        <mxCell id="data" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#ffffff;strokeColor=#666666;fontSize=12;" value="Data (EF Core)&lt;br&gt;AppDbContext, Entities, Migrations" vertex="1">
+          <mxGeometry height="70" width="380" x="420" y="525" as="geometry" />
+        </mxCell>
+        <mxCell id="db" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#ffffff;strokeColor=#666666;fontSize=12;" value="MySQL 8.0&lt;br&gt;(Docker, DBeaver chỉ để xem)" vertex="1">
+          <mxGeometry height="70" width="160" x="530" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="sto" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#ffffff;strokeColor=#666666;fontSize=12;" value="storage/audio&lt;br&gt;(Docker volume, file mp3)" vertex="1">
+          <mxGeometry height="70" width="200" x="60" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="lp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontStyle=1;fontSize=13;" value="Providers (Providers/) và dịch vụ ngoài" vertex="1">
+          <mxGeometry height="200" width="380" x="860" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="tp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#ffffff;strokeColor=#666666;fontSize=12;" value="ITranslationProvider&lt;br&gt;LibreTranslateProvider" vertex="1">
+          <mxGeometry height="70" width="180" x="880" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="tt" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#ffffff;strokeColor=#666666;fontSize=12;" value="ITtsProvider&lt;br&gt;EdgeTtsProvider" vertex="1">
+          <mxGeometry height="60" width="180" x="880" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="lt" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" value="LibreTranslate&lt;br&gt;(Docker)" vertex="1">
+          <mxGeometry height="70" width="120" x="1100" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="et" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" value="Edge TTS&lt;br&gt;(dịch vụ ngoài)" vertex="1">
+          <mxGeometry height="60" width="120" x="1100" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="client" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;strokeWidth=2;" target="ctrl" value="Request HTTP">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="ctrl" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;strokeWidth=2;" target="svc" value="gọi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="svc" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;strokeWidth=2;" target="repo" value="gọi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="repo" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;strokeWidth=2;" target="data" value="dùng">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="data" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;strokeWidth=2;" target="db" value="đọc/ghi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="wrk" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;strokeWidth=2;" target="svc" value="xử lý job">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="l2" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;strokeWidth=2;exitX=1;exitY=0.53;entryX=0;entryY=0.5;" target="tp" value="qua interface">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="tp" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;strokeWidth=2;" target="lt" value="HTTP">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="tt" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;strokeWidth=2;" target="et" value="HTTP">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="svc" style="endArrow=block;endFill=1;html=1;rounded=0;fontSize=11;strokeWidth=2;dashed=1;exitX=0;exitY=0.5;entryX=0;entryY=0.5;" target="sto" value="ghi/đọc mp3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="30" y="370" />
+              <mxPoint x="30" y="685" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="note" parent="1" style="text;html=1;whiteSpace=wrap;align=left;verticalAlign=middle;fontSize=12;fontStyle=2;" value="Quy tắc một chiều: Controller → Service → Repository hoặc Provider. Không đi ngược. Controller không gọi thẳng Provider hay Repository. Service dùng interface nên thay provider hoặc dùng mock khi test mà không sửa Service." vertex="1">
+          <mxGeometry height="40" width="1200" x="40" y="745" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
