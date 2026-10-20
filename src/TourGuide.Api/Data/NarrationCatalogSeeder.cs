@@ -1,0 +1,33 @@
+using Microsoft.EntityFrameworkCore;
+using TourGuide.Api.Data.Entities;
+
+namespace TourGuide.Api.Data;
+
+public static class NarrationCatalogSeeder
+{
+    public static async Task SeedAsync(IntegrationDbContext db, CancellationToken ct = default)
+    {
+        var places = await db.Places.AsNoTracking().Where(x => x.IsActive).ToListAsync(ct);
+        var catalog = new (string Title, string Topic, string Type, Func<Place, string> Text)[]
+        {
+            ("Lịch sử và nguồn gốc", "Lịch sử", "topic", p => $"{p.Name} là một điểm đến giúp du khách đọc được nhiều lớp ký ức của {p.City}. Khi quan sát địa điểm, hãy chú ý đến bối cảnh hình thành, mối liên hệ với khu vực xung quanh và cách nơi này thay đổi theo thời gian. Một chuyến tham quan có chiều sâu không chỉ là chụp ảnh; đó là dịp kết nối không gian hiện tại với những câu chuyện được lưu giữ qua kiến trúc, tư liệu và đời sống địa phương. Nội dung này là phần thuyết minh mẫu được biên soạn cho trải nghiệm ứng dụng, không thay thế tài liệu lịch sử chính thức."),
+            ("Văn hóa và kiến trúc", "Văn hóa", "topic", p => $"Hãy dành thời gian nhìn kỹ {p.Name}: hình khối, vật liệu, nhịp điệu không gian và những chi tiết nhỏ đều góp phần tạo nên bản sắc của địa điểm. Với các công trình đô thị, cách chúng nằm cạnh đường phố, hàng cây, quảng trường hoặc khu dân cư cũng kể một câu chuyện về văn hóa sử dụng không gian. Du khách có thể đi chậm, đọc bảng thông tin, quan sát ứng xử của người địa phương và giữ gìn sự yên tĩnh khi cần. Đây là gợi ý quan sát thực tế dành cho chuyến đi tại {p.City}."),
+            ("Trải nghiệm tham quan", "Trải nghiệm", "topic", p => $"Một trải nghiệm tốt tại {p.Name} bắt đầu từ việc chọn thời điểm phù hợp, dành đủ thời gian và tôn trọng không gian chung. Bạn có thể bắt đầu ở lối vào, quan sát điểm nhấn chính, sau đó đi theo tuyến ngắn quanh khu vực để khám phá những góc ít đông hơn. Hãy chuẩn bị nước uống, giữ tư trang gọn gàng và kiểm tra quy định chụp ảnh. Nếu đi cùng gia đình, nên thống nhất điểm hẹn và nhịp di chuyển. Những chi tiết nhỏ ấy giúp chuyến thăm {p.City} thoải mái hơn."),
+            ("Đặc sản địa phương", "Ẩm thực", "food", p => $"Ẩm thực quanh {p.Name} phản ánh nhịp sống và ký ức của {p.City}. Khi chọn món, hãy ưu tiên quán có thông tin rõ ràng, khu vực chế biến sạch và lượng ăn phù hợp. Hỏi người bán về thành phần, độ cay hoặc các lựa chọn dành cho người dị ứng. Trải nghiệm món địa phương không chỉ nằm ở hương vị mà còn ở cách món ăn xuất hiện trong đời sống hàng ngày: chợ, hàng quán nhỏ, bữa sáng nhanh hay cuộc trò chuyện bên vỉa hè. Hãy thưởng thức có trách nhiệm và tôn trọng không gian cộng đồng."),
+            ("Khu ăn uống nổi tiếng", "Ẩm thực", "food", p => $"Sau khi tham quan {p.Name}, du khách có thể tìm các khu ăn uống và tuyến phố ẩm thực trong phạm vi thành phố. Hãy dùng bản đồ để kiểm tra khoảng cách, đi theo nhóm khi khám phá buổi tối và ưu tiên những địa điểm có lượng khách ổn định. Một bữa ăn đáng nhớ thường kết hợp món chính, thức uống địa phương và câu chuyện của người bán. Đừng quên hỏi giá trước khi gọi món, giữ lại rác đúng nơi và để lại không gian dễ chịu cho cư dân {p.City}."),
+            ("Khách sạn và lưu trú", "Lưu trú", "hotel", p => $"Khi tìm nơi lưu trú gần {p.Name}, hãy so sánh khoảng cách, giờ nhận phòng, phương tiện di chuyển và đánh giá mới nhất từ nguồn đáng tin cậy. Khu trung tâm thường thuận tiện cho việc đi bộ nhưng có thể đông và ồn; khu xa hơn có thể yên tĩnh nhưng cần tính thời gian di chuyển. Nội dung này chỉ là hướng dẫn lựa chọn theo nhu cầu, không phải danh sách xếp hạng khách sạn. Hãy kiểm tra trực tiếp chính sách của cơ sở trước khi đặt phòng tại {p.City}."),
+            ("Sự kiện và câu chuyện đáng nhớ", "Sự kiện", "event", p => $"Không gian quanh {p.Name} có thể trở nên đặc biệt trong các dịp lễ hội, chương trình văn hóa hoặc hoạt động cộng đồng. Trước khi đi, hãy kiểm tra lịch sự kiện chính thức, thời gian mở cửa và các tuyến đường có thể thay đổi. Khi tham dự, giữ khoảng cách phù hợp, không chắn lối đi và tôn trọng người biểu diễn cũng như cư dân địa phương. Các sự kiện thay đổi theo mùa; ứng dụng chỉ cung cấp khung thuyết minh để bạn biết cách chuẩn bị, không khẳng định lịch tổ chức nếu chưa có nguồn cập nhật."),
+            ("Góc nhỏ đáng khám phá", "Hidden gems", "topic", p => $"Bên cạnh điểm nổi bật của {p.Name}, hãy để ý những góc ít được chú ý: mặt tiền cũ, cửa hàng gia truyền, hàng cây, ban công hoặc một đoạn phố có nhịp sống riêng. Hãy khám phá bằng sự tò mò nhưng tránh đi vào khu vực riêng tư, không chụp người khác khi chưa được đồng ý và không làm thay đổi cảnh quan. Những phát hiện nhỏ thường khiến chuyến đi tại {p.City} trở nên cá nhân hơn, miễn là chúng được trải nghiệm với sự tôn trọng."),
+            ("Truyền thuyết và văn hóa dân gian", "Văn hóa dân gian", "topic", p => $"Một địa điểm du lịch thường có những câu chuyện truyền miệng được kể qua nhiều thế hệ. Khi nghe về {p.Name}, hãy phân biệt rõ giữa dữ kiện có nguồn và truyền thuyết dân gian. Truyền thuyết có giá trị vì cho thấy cộng đồng nhìn nhận nơi chốn như thế nào, nhưng không nên được xem là bằng chứng lịch sử nếu chưa được xác minh. Đây là cách tiếp cận cân bằng để vừa thưởng thức câu chuyện, vừa tôn trọng sự chính xác trong thuyết minh tại {p.City}."),
+            ("Mẹo tham quan", "Hướng dẫn", "topic", p => $"Để chuyến đi đến {p.Name} thuận tiện hơn, hãy kiểm tra thời tiết, giờ mở cửa, phương tiện và tình trạng đông khách trước khi khởi hành. Mang giày dễ đi, bảo vệ thiết bị khỏi nắng mưa và lưu số liên hệ hỗ trợ cần thiết. Nếu dùng GPS, chỉ chia sẻ vị trí khi cần và tôn trọng quyền riêng tư của người đi cùng. Hãy để lại địa điểm sạch sẽ, không tự ý chạm vào hiện vật và tuân thủ hướng dẫn của ban quản lý."),
+            ("Địa điểm gần đó", "Khám phá", "topic", p => $"Từ {p.Name}, bạn có thể tiếp tục hành trình bằng cách chọn một POI khác trên bản đồ hoặc dùng nút tìm địa điểm gần tôi. Ưu tiên tuyến đi bộ ngắn, nhóm các điểm cùng khu vực và dành thời gian nghỉ giữa các chặng. Khoảng cách trên bản đồ là ước tính theo tọa độ, còn thời gian thực tế phụ thuộc giao thông và lối vào. Hãy dùng danh sách POI để xây dựng một hành trình vừa sức trong {p.City}.")
+        };
+        foreach (var place in places)
+        {
+            var existing = await db.NarrationContents.Where(x => x.PlaceId == place.Id).Select(x => x.Title).ToListAsync(ct);
+            foreach (var item in catalog.Where(x => !existing.Contains(x.Title)))
+                db.NarrationContents.Add(new NarrationContent { PlaceId = place.Id, Title = item.Title, Topic = item.Topic, ContentType = item.Type, SourceText = item.Text(place) });
+        }
+        await db.SaveChangesAsync(ct);
+    }
+}

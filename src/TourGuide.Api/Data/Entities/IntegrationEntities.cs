@@ -42,6 +42,12 @@ public class Place
     [MaxLength(200)] public string Name { get; set; } = "";
     public string Description { get; set; } = "";
     [MaxLength(120)] public string? City { get; set; }
+    [MaxLength(80)] public string? Category { get; set; }
+    [MaxLength(240)] public string? Address { get; set; }
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
+    [MaxLength(500)] public string? ImageUrl { get; set; }
+    public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -111,6 +111,7 @@ using (var scope = app.Services.CreateScope())
     try
     {
         await LanguageSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<IntegrationDbContext>());
+        await NarrationCatalogSeeder.SeedAsync(scope.ServiceProvider.GetRequiredService<IntegrationDbContext>());
         await UserSeeder.SeedConfiguredAsync(scope.ServiceProvider.GetRequiredService<IntegrationDbContext>(), scope.ServiceProvider.GetRequiredService<IConfiguration>());
     }
     catch (Exception ex)
