@@ -6,18 +6,24 @@ using Microsoft.EntityFrameworkCore;
 using Vivoice.Web.Data;
 using Vivoice.Web.Services;
 
+DatabaseInitializationCommand command;
+try
+{
+    command = DatabaseInitializationCommand.Parse(args);
+}
+catch (ArgumentException)
+{
+    Console.Error.WriteLine("Invalid database initialization command.");
+    Environment.ExitCode = 2;
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-builder.Services.AddHealthChecks();
+var connectionString = VivoiceConnectionString.Require(builder.Configuration);
 builder.Services.AddDbContext<VivoiceDbContext>(options =>
 {
-    var connectionString = builder.Configuration.GetConnectionString("Vivoice");
-    if (string.IsNullOrWhiteSpace(connectionString))
-    {
-        throw new InvalidOperationException("ConnectionStrings:Vivoice is required. Configure User Secrets or environment variables.");
-    }
-
     options.UseSqlServer(connectionString);
 });
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -38,8 +44,36 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<PublicContentService>();
 builder.Services.AddScoped<AnalyticsService>();
 builder.Services.AddScoped<BootstrapAdminService>();
+builder.Services.AddScoped<IAdminBootstrapper>(serviceProvider => serviceProvider.GetRequiredService<BootstrapAdminService>());
+builder.Services.AddScoped<IDatabaseMigrationApplier, EfCoreDatabaseMigrationApplier>();
+builder.Services.AddScoped<IContentSeedRunner, ContentSeedRunner>();
+builder.Services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
+builder.Services.AddScoped<DatabaseInitializationCommandRunner>();
+builder.Services.AddScoped<IDatabaseReadinessService, DatabaseReadinessService>();
 
 var app = builder.Build();
+
+if (command.IsRequested)
+{
+    try
+    {
+        await using var initializationScope = app.Services.CreateAsyncScope();
+        var runner = initializationScope.ServiceProvider.GetRequiredService<DatabaseInitializationCommandRunner>();
+        await runner.RunIfRequestedAsync(command);
+    }
+    catch (BootstrapAdminConfigurationException exception)
+    {
+        app.Logger.LogError("{Message}", exception.Message);
+        Environment.ExitCode = 1;
+    }
+    catch
+    {
+        app.Logger.LogError("Database initialization failed before all requested phases completed.");
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
 
 app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
 {
@@ -51,15 +85,11 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHealthChecks("/health");
-
-await using (var scope = app.Services.CreateAsyncScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<VivoiceDbContext>();
-    await db.Database.MigrateAsync();
-    await scope.ServiceProvider.GetRequiredService<BootstrapAdminService>().SeedAsync();
-    await DatabaseSeeder.SeedAsync(db);
-}
+app.MapGet("/health", () => Results.Ok(new { status = "alive" }));
+app.MapGet("/ready", async (IDatabaseReadinessService readiness, CancellationToken cancellationToken) =>
+    await readiness.IsReadyAsync(cancellationToken)
+        ? Results.Ok(new { status = "ready" })
+        : Results.StatusCode(StatusCodes.Status503ServiceUnavailable));
 
 app.Run();
 

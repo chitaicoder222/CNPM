@@ -28,12 +28,7 @@ public sealed class VivoiceDbContextFactory : IDesignTimeDbContextFactory<Vivoic
         var configuration = configurationBuilder
             .AddEnvironmentVariables()
             .Build();
-        var connectionString = configuration.GetConnectionString("Vivoice");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                "ConnectionStrings:Vivoice is required for EF Core design-time operations. Configure Development User Secrets or ConnectionStrings__Vivoice.");
-        }
+        var connectionString = VivoiceConnectionString.Require(configuration, "for EF Core design-time operations");
 
         var options = new DbContextOptionsBuilder<VivoiceDbContext>()
             .UseSqlServer(connectionString)

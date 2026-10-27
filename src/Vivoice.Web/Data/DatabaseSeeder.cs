@@ -9,22 +9,44 @@ public static class DatabaseSeeder
 {
     public static async Task SeedAsync(VivoiceDbContext db, CancellationToken cancellationToken = default)
     {
-        if (!await db.VisitRevenueRates.AnyAsync(cancellationToken))
+        var plan = ContentSeedPlan.Create(
+            hasRevenueRate: await db.VisitRevenueRates.AnyAsync(cancellationToken),
+            hasPoi: await db.Pois.AnyAsync(cancellationToken));
+        if (!plan.HasWork)
         {
-            db.VisitRevenueRates.Add(new VisitRevenueRate
-            {
-                Amount = 0.10m,
-                Currency = "USD",
-                EffectiveFromUtc = DateTime.UtcNow.Date
-            });
-        }
-
-        if (await db.Pois.AnyAsync(cancellationToken))
-        {
-            await db.SaveChangesAsync(cancellationToken);
             return;
         }
 
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            if (plan.CreateRevenueRate)
+            {
+                db.VisitRevenueRates.Add(new VisitRevenueRate
+                {
+                    Amount = 0.10m,
+                    Currency = "USD",
+                    EffectiveFromUtc = DateTime.UtcNow.Date
+                });
+            }
+
+            if (plan.CreatePois)
+            {
+                AddInitialPois(db);
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    private static void AddInitialPois(VivoiceDbContext db)
+    {
         var seeds = new[]
         {
             ("ha-noi", "Hà Nội", "Thủ đô nghìn năm văn hiến, nơi giao thoa lịch sử và đời sống đương đại.", 21.028511m, 105.804817m),
@@ -55,7 +77,6 @@ public static class DatabaseSeeder
             db.Pois.Add(poi);
         }
 
-        await db.SaveChangesAsync(cancellationToken);
     }
 
     private static PoiTopic CreateTopic(string category, int order, string title, string content) => new()
@@ -64,4 +85,11 @@ public static class DatabaseSeeder
         DisplayOrder = order,
         Translations = [new TopicTranslation { LanguageCode = "vi", Title = title, Content = content }]
     };
+}
+
+public readonly record struct ContentSeedPlan(bool CreateRevenueRate, bool CreatePois)
+{
+    public bool HasWork => CreateRevenueRate || CreatePois;
+
+    public static ContentSeedPlan Create(bool hasRevenueRate, bool hasPoi) => new(!hasRevenueRate, !hasPoi);
 }
