@@ -1,0 +1,42 @@
+# Purpose: Validate the VIVOICE web project and its unit tests without starting the app or using production services.
+name: VIVOICE CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and unit test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "true"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up .NET 9 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore unit-test dependencies
+        run: dotnet restore tests/Vivoice.Web.Tests/Vivoice.Web.Tests.csproj
+
+      - name: Build VIVOICE web project
+        run: dotnet build src/Vivoice.Web/Vivoice.Web.csproj --configuration Release --no-restore
+
+      - name: Run VIVOICE unit tests
+        run: dotnet test tests/Vivoice.Web.Tests/Vivoice.Web.Tests.csproj --configuration Release --no-restore --logger "console;verbosity=normal"
