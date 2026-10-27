@@ -1,0 +1,28 @@
+<!-- Purpose: Public VIVOICE exploration page with map, POI cards, automatic narration and responsive ad rails. -->
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#450A0A">
+  <title>VIVOICE — Vietnam Voice</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header class="site-header"><div class="shell header-inner">
+    <a class="brand" href="#top" aria-label="VIVOICE home"><span class="brand-mark" aria-hidden="true">✦</span><span><span class="brand-name">VIVOICE</span><span class="brand-tagline">Vietnam Voice</span></span></a>
+    <div class="header-actions"><label class="hidden" for="languageSelect">Ngôn ngữ</label><select id="languageSelect" class="language-select" aria-label="Chọn ngôn ngữ"></select></div>
+  </div></header>
+  <aside id="leftAds" class="ad-rail left" aria-label="Quảng cáo bên trái"></aside>
+  <aside id="rightAds" class="ad-rail right" aria-label="Quảng cáo bên phải"></aside>
+  <main id="top">
+    <section class="hero"><div class="shell hero-grid"><div><span class="eyebrow" data-i18n="eyebrow">Hành trình Việt Nam đa ngôn ngữ</span><h1 data-i18n="heroTitle">Chạm vào một địa điểm. Lắng nghe một câu chuyện.</h1><p data-i18n="heroCopy">Khám phá văn hóa, hương vị và những hành trình đặc sắc của Việt Nam theo ngôn ngữ của bạn.</p></div><div class="hero-card"><span aria-hidden="true">✦</span><strong data-i18n="heroCard">Bản đồ thật. Nội dung thật. Giọng đọc được thử phát tự động.</strong></div></div></section>
+    <section class="shell section" aria-labelledby="exploreTitle"><div class="section-heading"><div><span class="section-kicker" data-i18n="mapKicker">Khám phá</span><h2 id="exploreTitle" data-i18n="mapTitle">Sáu điểm đến nổi bật</h2></div><p id="publicStatus" class="status-line" role="status" aria-live="polite"></p></div><div class="map-card"><div id="map" aria-label="Bản đồ các điểm thuyết minh VIVOICE"></div></div><div id="poiGrid" class="poi-grid" aria-live="polite"></div></section>
+    <section class="narration-section"><div class="shell section"><div class="section-heading"><div><span class="section-kicker" data-i18n="narrationKicker">Thuyết minh tự động</span><h2 data-i18n="narrationTitle">Chọn một chủ đề để bắt đầu</h2></div></div><div class="narration-layout"><section class="topic-list" aria-labelledby="topicHeading"><h3 id="topicHeading" data-i18n="topics">Chủ đề</h3><div id="topicGrid" class="topic-grid"></div></section><section class="narration-panel" aria-live="polite"><span id="narrationCategory" class="section-kicker"></span><h3 id="narrationHeading" data-i18n="narrationEmptyTitle">Nội dung sẽ xuất hiện tại đây</h3><p id="narrationText" data-i18n="narrationEmptyText">Chọn một POI, sau đó chọn chủ đề bạn muốn khám phá.</p><div class="narration-actions"><button id="pauseSpeech" class="button secondary hidden" type="button" data-i18n="pause">Tạm dừng</button><button id="replaySpeech" class="button secondary hidden" type="button" data-i18n="replay">Đọc lại</button><span id="speechStatus" class="status-line"></span></div></section></div></div></section>
+  </main>
+  <footer class="site-footer"><div class="shell"><p>VIVOICE — Vietnam Voice · <span data-i18n="footer">Khám phá có trách nhiệm, lắng nghe bằng ngôn ngữ của bạn.</span></p></div></footer>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="public.js"></script>
+</body>
+</html>

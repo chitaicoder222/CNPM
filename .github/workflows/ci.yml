@@ -1,47 +1,42 @@
-name: CI
+# Purpose: Validate the VIVOICE web project and its unit tests without starting the app or using production services.
+name: VIVOICE CI
 
 on:
-  push:
-    branches: [main, develop]
   pull_request:
-    branches: [main, develop]
+    branches:
+      - main
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
-  build-test:
+  build-and-test:
+    name: Build and unit test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "true"
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up .NET 9
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up .NET 9 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
-      - name: Restore dependencies
-        run: dotnet restore
-      - name: Verify formatting
-        run: dotnet format --verify-no-changes --no-restore
-      - name: Build
-        run: dotnet build -c Release --no-restore
-      - name: Test with coverage
-        run: dotnet test -c Release --no-build --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx"
-      - name: Upload test evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-evidence
-          path: |
-            **/TestResults/**/*.trx
-            **/TestResults/**/*.xml
 
-  container:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build API container
-        run: docker build -f src/TourGuide.Api/Dockerfile -t tourguide-api:${{ github.sha }} src/TourGuide.Api
-      - name: Validate Compose configuration
-        env:
-          MYSQL_ROOT_PASSWORD: ci-root-password
-          MYSQL_PASSWORD: ci-app-password
-          JWT_SECRET: ci-jwt-secret-at-least-32-characters-long
-        run: docker compose config --quiet
+      - name: Restore unit-test dependencies
+        run: dotnet restore tests/Vivoice.Web.Tests/Vivoice.Web.Tests.csproj
+
+      - name: Build VIVOICE web project
+        run: dotnet build src/Vivoice.Web/Vivoice.Web.csproj --configuration Release --no-restore
+
+      - name: Run VIVOICE unit tests
+        run: dotnet test tests/Vivoice.Web.Tests/Vivoice.Web.Tests.csproj --configuration Release --no-restore --logger "console;verbosity=normal"

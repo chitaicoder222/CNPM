@@ -1,63 +1,26 @@
+# Purpose: Defines the proposed local-only SQL Server dependency for VIVOICE development.
+# Responsibility: Keeps database data in a named Docker volume and never exposes SQL Server beyond this computer.
+name: vivoice-dev
+
 services:
-  db:
-    image: mysql:8
-    restart: unless-stopped
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-CU18-ubuntu-22.04@sha256:ea73825f3d88a23c355ac2f9fdc6bd960fec90171c12c572109b36a558f77bb8
+    container_name: vivoice-sqlserver-dev
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-tourguide}
-      MYSQL_USER: ${MYSQL_USER:-tourguide}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in a local .env file before starting SQL Server.}
     ports:
-      - "3306:3306"
+      - "127.0.0.1:14333:1433"
     volumes:
-      - db_data:/var/lib/mysql
+      - vivoice_sqlserver_data:/var/opt/mssql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "grep -q 'SQL Server is now ready for client connections' /var/opt/mssql/log/errorlog"]
       interval: 10s
       timeout: 5s
-      retries: 5
-
-  libretranslate:
-    image: libretranslate/libretranslate:latest
-    restart: unless-stopped
-    ports:
-      - "5000:5000"
-    environment:
-      - LT_UPDATE_MODELS=false
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/languages')\" || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-
-
-  api:
-    build:
-      context: ./src/TourGuide.Api
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      libretranslate:
-        condition: service_healthy
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__Default: "server=db;port=3306;database=${MYSQL_DATABASE:-tourguide};user=${MYSQL_USER:-tourguide};password=${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}"
-      Jwt__Issuer: "TourGuide"
-      Jwt__Secret: ${JWT_SECRET:?Set JWT_SECRET in .env}
-      LibreTranslate__BaseUrl: "http://libretranslate:5000/"
-      Tts__EdgeCommand: "edge-tts"
-      Storage__Root: "/app/storage"
-    ports:
-      - "8080:8080"
-    healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\" || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-    volumes:
-      - ./storage:/app/storage
+      retries: 18
+      start_period: 30s
 
 volumes:
-  db_data:
+  vivoice_sqlserver_data:
+    name: vivoice_sqlserver_data
