@@ -6,7 +6,7 @@
 
 ## Test layers
 
-Current unit tests cover only normalization and three coarse device categories. Planned integration tests cover EF Core SQL Server migrations, API authorization, rate history, payment rules and dashboard aggregation. Browser/manual checks cover Leaflet marker-card sync, SpeechSynthesis fallback, five locales, responsive rails and admin forms. Security checks must cover anonymous admin API denial, invalid input/URL, rate limiting, CSRF and secret scan.
+Current unit tests cover normalization, coarse device categories, explicit database-initialization command routing, phase ordering, bootstrap/seed policies and readiness policy. Planned integration tests cover EF Core SQL Server migrations, API authorization, rate history, payment rules and dashboard aggregation. Browser/manual checks cover Leaflet marker-card sync, SpeechSynthesis fallback, five locales, responsive rails and admin forms. Security checks must cover anonymous admin API denial, invalid input/URL, rate limiting, CSRF and secret scan.
 
 | ID | Scenario | Expected result | Status |
 |---|---|---|---|
@@ -26,7 +26,11 @@ Current unit tests cover only normalization and three coarse device categories. 
 | TC-DKR-001 | Docker SQL Server preflight | Docker CLI/daemon, WSL 2, virtualization and resource checks pass; existing unrelated containers remain untouched. | PASS — preflight only. |
 | TC-DKR-002 | VIVOICE SQL container readiness | New pinned image container becomes healthy, data volume persists, port binds only loopback, and no secret appears in logs. | NOT RUN — container requires explicit approval before creation. |
 | TC-CON-001 | Runtime/design-time connection source alignment | Runtime and EF factory accept the same private `ConnectionStrings:Vivoice` providers, and missing configuration fails without LocalDB fallback. | PASS — static source assertions and build; no secret/configuration execution or database operation. |
+| TC-INIT-001 | Normal startup command routing | No initializer is invoked without `--initialize-database`; invalid bootstrap-only command is rejected. | PASS — unit test. |
+| TC-INIT-002 | Initializer phase control | Migration runs before content seed; migration failure prevents seed and bootstrap. | PASS — unit test with in-memory fakes, no SQL Server. |
+| TC-INIT-003 | Bootstrap and content-seed policies | Existing Admin prevents bootstrap; missing bootstrap config errors; existing rate/POI state schedules no duplicate seed. | PASS — unit policy test, no SQL Server. |
+| TC-READY-001 | Database readiness policy | Readiness is false when unreachable or migrations are pending. | PASS — unit policy test; endpoint/database execution NOT RUN. |
 
 ## Results
 
-Executed evidence on 2026-10-26: build passed with 0 warnings/errors; test passed 5/5; Node syntax checks passed for public.js and admin.js. UTF-8 strict decoding passed for 27 application source files, and a targeted scan found no public Admin link, deprecated decorative font declaration, or real bootstrap fixture in source/test. Docker Desktop preflight and Compose secret-resolution checks passed; the isolated SQL container is running healthy with loopback TCP and a container-local authenticated SQL connection verified. TC-CON-001 static assertions confirm JSON, Development User Secrets and environment-variable providers, explicit missing-config failure, and removal of LocalDB fallback; the web host and EF commands were not run. No EF migration, seed, application start, browser/API integration or admin-cookie test ran. See [Implementation Audit](../11_reports/IMPLEMENTATION_AUDIT_2026-10-26.md) for the evidence boundary and missing test coverage.
+Executed evidence on 2026-10-27: Debug build passed with 0 warnings/errors; unit tests passed 16/16. The new tests use fakes and pure policies only; they do not start the web host, connect to SQL Server, run migration, seed or bootstrap a real Admin. TC-CON-001 confirms shared fail-closed connection-string validation in runtime/design-time code by static source/build evidence. No EF migration, content seed, application start, browser/API integration, readiness endpoint execution or admin-cookie test ran. SQL Server integration is required before promoting initializer or readiness behavior beyond IMPLEMENTED BUT NOT VERIFIED.

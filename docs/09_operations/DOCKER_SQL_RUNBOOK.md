@@ -45,7 +45,7 @@ The proposed service is a new container named vivoice-sqlserver-dev. It uses the
 | Secret source | Untracked .env file | MSSQL_SA_PASSWORD only; no real secret in source, docs or logs. |
 | App connection | User Secrets or environment variable | ConnectionStrings:Vivoice remains outside tracked files. |
 
-The existing application performs automatic EF migrations during startup. Until that behavior is separated into an approved migration workflow, the initial local bootstrap connection requires a sufficiently privileged development account. After successful migration, create a VIVOICE-specific application account and reduce its database permissions as a separate, documented security change. Do not use the sa account for normal operation beyond the necessary bootstrap phase.
+The VIVOICE web host does not perform EF migrations, content seed, or Admin bootstrap during normal startup. A privileged operator runs the explicit `--initialize-database` command once at a time; normal web runtime uses an account without DDL permission. Add `--bootstrap-admin` only to create the first Admin from private configuration. Do not use the sa account for normal operation beyond the controlled local initialization phase.
 
 ## Files prepared before container creation
 
@@ -78,8 +78,8 @@ Before running Docker Compose, confirm all of the following:
 2. Check container logs for SQL Server readiness without echoing environment values.
 3. Verify loopback connectivity with an existing client or a container-local tool.
 4. Set only the VIVOICE development connection string through User Secrets/environment.
-5. Compare the two migrations with Database Design, confirm a new approved development database, then apply them.
-6. Verify tables, indexes, six seeded POIs and the first USD 0.10 rate.
-7. Start the ASP.NET Core host, verify health and public POI API, then complete browser and admin integration tests.
+5. Compare the two migrations with Database Design, confirm a new approved development database, then run the explicit initializer once.
+6. Verify tables, indexes, six seeded POIs and the first USD 0.10 rate. Use `--bootstrap-admin` only if the database has no Admin and the three private BootstrapAdmin keys are configured.
+7. Start the ASP.NET Core host without initialization flags. Verify generic `/health`, database-aware `/ready`, public POI API, then complete browser and admin integration tests.
 
 Microsoft references: [SQL Server container quickstart](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/quickstart-install-docker?preserve-view=true&view=sql-server-linux-ver16), [container configuration and named volumes](https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-docker-container-configure), and [environment variable guidance](https://learn.microsoft.com/en-us/sql/linux/configure/environment-variables?view=sql-server-ver17).

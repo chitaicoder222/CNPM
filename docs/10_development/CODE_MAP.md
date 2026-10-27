@@ -8,7 +8,7 @@ Source files begin with purpose/responsibility comments; JSON remains valid JSON
 
 | Change request | Primary files | Data/API impact | Current status |
 |---|---|---|---|
-| Startup, SQL configuration and design-time factory | src/Vivoice.Web/Program.cs; Data/VivoiceDbContextFactory.cs; appsettings files | SQL Server runtime and EF Core tooling | IMPLEMENTED BUT NOT VERIFIED — shared private configuration sources, explicit missing-config failure, no LocalDB fallback; no connection/migration run |
+| Startup, readiness and controlled initialization | src/Vivoice.Web/Program.cs; Services/DatabaseInitialization.cs; Services/DatabaseReadinessService.cs; Data/VivoiceDbContextFactory.cs; appsettings files | Normal web startup is DDL-free; explicit initializer owns migration, content seed and optional bootstrap; readiness checks database/pending migrations | IMPLEMENTED BUT NOT VERIFIED — static/build evidence only; no command or database run |
 | Public map, POI cards and narration | wwwroot/index.html; public.js; site.css; PublicController.cs; PublicContentService.cs | API-PUB-001..003 | IMPLEMENTED BUT NOT VERIFIED |
 | Add/change a POI | AdminController.cs; admin.js; ContentEntities.cs | Pois and PoiTranslations; API-ADM-003 | IMPLEMENTED BUT NOT VERIFIED |
 | Add/change a topic or its TTS text | AdminController.cs; admin.js; PublicContentService.cs | PoiTopics and TopicTranslations; API-ADM-004/005 | IMPLEMENTED BUT NOT VERIFIED |
@@ -17,8 +17,8 @@ Source files begin with purpose/responsibility comments; JSON remains valid JSON
 | Active sessions and dashboard | AnalyticsService.cs; AdminController.cs; admin.js; OperationsEntities.cs | VisitorSessions, Visits; API-ADM-002 | PARTIALLY IMPLEMENTED — TTL/abuse controls open |
 | Sponsors, contracts and payments | AdminController.cs; admin.js; OperationsEntities.cs | Sponsors, agreements, payments; API-ADM-007 | PARTIALLY IMPLEMENTED — financial integrity rules open |
 | Per-visit rate history | AdminController.cs; AnalyticsService.cs; admin.js | VisitRevenueRates; API-ADM-008 | IMPLEMENTED BUT NOT VERIFIED |
-| EF Core schema | VIVOICE DbContext; entities; Data/Migrations | InitialCreate plus AddOperationsManagement | BLOCKED — generated, never applied |
-| Regression checks | tests/Vivoice.Web.Tests/Unit; Test Plan | 5 unit tests | IMPLEMENTED AND VERIFIED for narrow unit scope |
+| EF Core schema and baseline content | VIVOICE DbContext; entities; Data/Migrations; Services/DatabaseInitialization.cs; DatabaseSeeder.cs | InitialCreate plus AddOperationsManagement; explicit initializer | IMPLEMENTED BUT NOT VERIFIED — migration/seed are not normal startup behavior and were not run in this source change |
+| Regression checks | tests/Vivoice.Web.Tests/Unit; Test Plan | 16 unit tests | IMPLEMENTED AND VERIFIED for narrow unit scope; SQL/runtime integration remains unverified |
 | Public font/copy/navigation correction | site.css; index.html; public.js; admin.html; DatabaseSeeder.cs | no API/schema change | IMPLEMENTED BUT NOT VERIFIED — static UTF-8, syntax and navigation checks pass; browser visual/API check remains blocked by SQL |
 | Local Docker SQL Server | docker-compose.yml; .env.example; .gitignore; Docker SQL Server Runbook | SQL Server 2022 container and loopback connection | IMPLEMENTED AND VERIFIED — healthy VIVOICE-only container, loopback TCP and container-local SQL connection; no migration/seed |
 

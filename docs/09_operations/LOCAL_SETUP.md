@@ -12,9 +12,17 @@ Install .NET SDK 9, SQL Server Express/Developer or an approved SQL Server insta
 
 Create User Secrets for `src/Vivoice.Web` with: `ConnectionStrings:Vivoice`, `BootstrapAdmin:DisplayName`, `BootstrapAdmin:Phone`, `BootstrapAdmin:Password`, and `Authentication:CookieSecret`. The application and its EF Core design-time factory use the same precedence: base JSON, optional environment JSON, Development User Secrets, then process environment variables. `ConnectionStrings__Vivoice` is the environment-variable equivalent. The factory fails explicitly if the connection string is absent and has no LocalDB fallback. Use safe placeholders in tracked `appsettings*.json`; never paste real values into a command history, README, SQL file or commit.
 
-For the current local Docker SQL Server, choose the intended VIVOICE database name explicitly in the private connection string and target `127.0.0.1:14333`. Do not place that application connection string in Docker `.env`; that file is reserved for the SQL Server container password. Do not run `dotnet run` merely to test a connection: the current startup path automatically runs migrations and seed operations.
+For the current local Docker SQL Server, choose the intended VIVOICE database name explicitly in the private connection string and target `127.0.0.1:14333`. Do not place that application connection string in Docker `.env`; that file is reserved for the SQL Server container password. Normal `dotnet run` does not migrate, seed, or bootstrap an Admin.
 
-After source exists: run `dotnet restore`, `dotnet ef database update --project src/Vivoice.Web`, then `dotnet run --project src/Vivoice.Web`. Confirm health/API, public page and protected admin page. If an operation fails, stop and inspect configuration; never delete an existing database just to retry a migration.
+## Controlled database initialization
+
+The database initializer is an explicit operator command, never a normal web-startup side effect. From the repository root, run `dotnet run --project src/Vivoice.Web -- --initialize-database` to apply pending migrations and seed the non-sensitive reference content. Add `--bootstrap-admin` only when a first Admin must be created: `dotnet run --project src/Vivoice.Web -- --initialize-database --bootstrap-admin`.
+
+The initializer runs migration, then content seed, then optional Admin bootstrap. It stops at the first failed phase and exits non-zero. It does not start the web host. Run it once at a time with the privileged development/deployment database identity. A normal web process should use an identity without DDL permission. Migration, content seed and bootstrap are separate durable phases: a successful migration is not rolled back if a later phase fails. Content seed uses one database transaction for the rate and all initial POIs/topics; a failed content seed rolls back that phase only. Bootstrap uses its own insert/save operation after content seed succeeds.
+
+If no Admin exists, `--bootstrap-admin` requires all three private BootstrapAdmin configuration keys and fails without creating a partial account when any key is absent. If any Admin already exists, the command makes no password or account change. Content seed creates missing baseline data only and does not overwrite POIs, topics, translations, or rates already managed by an Admin.
+
+After initialization, run `dotnet run --project src/Vivoice.Web`. `/health` is a generic liveness endpoint. `/ready` returns success only when the database can be reached and no EF migrations are pending; neither endpoint returns connection or schema details. If an operation fails, stop and inspect protected configuration; never delete an existing database just to retry a migration.
 
 ## Cloudflare Tunnel (manual future operation)
 

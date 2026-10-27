@@ -18,11 +18,13 @@ Status labels mean: VERIFIED has direct executed evidence; IMPLEMENTED BUT NOT V
 | FR-ADM-003 content management | API-ADM-003..005; POI/topic translations/AuditLogs | TC-ADM-004 NOT RUN | AdminController.cs, admin.js | IMPLEMENTED BUT NOT VERIFIED |
 | FR-ADM-004 commerce/rates | API-ADM-006..008; ads/sponsors/agreements/payments/rates | TC-ADM-005 NOT RUN | AdminController.cs, AnalyticsService.cs, admin.js | PARTIALLY IMPLEMENTED — payment integrity open |
 | FR-DATA-001 request-time data freshness | SQL request-time queries | SQL integration NOT RUN | PublicContentService.cs, AnalyticsService.cs | BLOCKED |
-| NFR-SEC-001 | cookie/auth/hash/validation/audit | static audit plus five narrow unit tests | Program.cs, controllers, services | PARTIALLY IMPLEMENTED |
+| NFR-SEC-001 | cookie/auth/hash/validation/audit | static audit plus 16 narrow unit tests | Program.cs, controllers, services | PARTIALLY IMPLEMENTED |
 | NFR-UX-001 | Design tokens and responsive CSS | static palette check only | site.css, index.html, admin.html | PARTIALLY IMPLEMENTED |
 | NFR-MAINT-001 | headers/docs/code map | static scan; JSON exception documented | docs/, source headers | PARTIALLY IMPLEMENTED |
 | UI font/encoding and public navigation | Design System typography/public rules | UTF-8 static check, JavaScript syntax and no-Admin-link scan PASS; browser visual test NOT RUN | site.css, index.html, public.js, admin.html, DatabaseSeeder.cs | IMPLEMENTED BUT NOT VERIFIED |
 | Local Docker SQL environment | Docker SQL Server Runbook | TC-DKR-001 PASS; TC-DKR-002 PASS for container health, loopback TCP and container-local SQL query; migration NOT RUN | docker-compose.yml, .env.example, .gitignore | IMPLEMENTED AND VERIFIED for SQL runtime only |
 | Runtime/design-time connection source | `ConnectionStrings:Vivoice`; no schema/API change | TC-CON-001 PASS for static source/build; no EF/database execution | Program.cs, VivoiceDbContextFactory.cs, User Secrets/environment | IMPLEMENTED BUT NOT VERIFIED — no private connection configured or migration run |
+| Controlled migration, seed and optional Admin bootstrap | Explicit `--initialize-database` and optional `--bootstrap-admin`; AdminUsers/POIs/rates | Unit tests cover command parsing, failure order and non-mutating policies; no database execution | Program.cs, Services/DatabaseInitialization.cs, BootstrapAdminService.cs, DatabaseSeeder.cs | IMPLEMENTED BUT NOT VERIFIED — SQL Server integration and concurrent operator execution NOT RUN |
+| Database-aware readiness | Generic `/health`; `/ready` checks connectivity and pending migrations without response details | Unit tests cover readiness policy; no runtime endpoint/database execution | Program.cs, Services/DatabaseReadinessService.cs | IMPLEMENTED BUT NOT VERIFIED |
 
 Do not promote a row based only on a page, controller, or migration. Update this matrix only when the specific evidence column gains a matching test or live verification record.
