@@ -1,5 +1,6 @@
 // Purpose: Provides protected dashboard, device, POI and topic management endpoints for the VIVOICE admin UI.
 // Responsibility: Validates administrative writes, persists them in SQL Server and records safe audit events.
+using System.Data;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,6 +14,7 @@ namespace Vivoice.Web.Controllers;
 
 [ApiController]
 [Authorize(Roles = "admin")]
+[AutoValidateAntiforgeryToken]
 [Route("api/admin")]
 public sealed class AdminController(VivoiceDbContext db, AnalyticsService analytics) : ControllerBase
 {
@@ -84,7 +86,9 @@ public sealed class AdminController(VivoiceDbContext db, AnalyticsService analyt
     {
         if (!IsValidTopic(request)) return BadRequest(new { code = "VALIDATION_ERROR", message = "Category, title và nội dung tiếng Việt là bắt buộc." });
         if (!await db.Pois.AnyAsync(x => x.Id == poiId, cancellationToken)) return NotFound(new { code = "POI_NOT_FOUND", message = "Không tìm thấy POI." });
-        var topic = new PoiTopic { PoiId = poiId, Category = request.Category.Trim().ToLowerInvariant(), DisplayOrder = request.DisplayOrder, IsActive = request.IsActive, Translations = [new TopicTranslation { LanguageCode = "vi", Title = request.TitleVi.Trim(), Content = request.ContentVi.Trim() }] };
+        var category = TopicCategoryPolicy.Normalize(request.Category)!;
+        if (await db.PoiTopics.AnyAsync(x => x.PoiId == poiId && x.Category == category, cancellationToken)) return Conflict(new { code = "TOPIC_CATEGORY_CONFLICT", message = "POI đã có chủ đề thuộc nhóm này." });
+        var topic = new PoiTopic { PoiId = poiId, Category = category, DisplayOrder = request.DisplayOrder, IsActive = request.IsActive, Translations = [new TopicTranslation { LanguageCode = "vi", Title = request.TitleVi.Trim(), Content = request.ContentVi.Trim() }] };
         db.PoiTopics.Add(topic); await db.SaveChangesAsync(cancellationToken); await AuditAsync("TOPIC_CREATE", "PoiTopic", topic.Id.ToString(), cancellationToken);
         return Created($"/api/admin/pois/{poiId}/topics/{topic.Id}", ToAdminTopic(topic));
     }
@@ -95,7 +99,9 @@ public sealed class AdminController(VivoiceDbContext db, AnalyticsService analyt
         if (!IsValidTopic(request)) return BadRequest(new { code = "VALIDATION_ERROR", message = "Category, title và nội dung tiếng Việt là bắt buộc." });
         var topic = await db.PoiTopics.Include(x => x.Translations).FirstOrDefaultAsync(x => x.Id == topicId, cancellationToken);
         if (topic is null) return NotFound(new { code = "TOPIC_NOT_FOUND", message = "Không tìm thấy chủ đề." });
-        topic.Category = request.Category.Trim().ToLowerInvariant(); topic.DisplayOrder = request.DisplayOrder; topic.IsActive = request.IsActive;
+        var category = TopicCategoryPolicy.Normalize(request.Category)!;
+        if (await db.PoiTopics.AnyAsync(x => x.Id != topicId && x.PoiId == topic.PoiId && x.Category == category, cancellationToken)) return Conflict(new { code = "TOPIC_CATEGORY_CONFLICT", message = "POI đã có chủ đề thuộc nhóm này." });
+        topic.Category = category; topic.DisplayOrder = request.DisplayOrder; topic.IsActive = request.IsActive;
         var vi = topic.Translations.FirstOrDefault(x => x.LanguageCode == "vi");
         if (vi is null) topic.Translations.Add(new TopicTranslation { LanguageCode = "vi", Title = request.TitleVi.Trim(), Content = request.ContentVi.Trim() });
         else { vi.Title = request.TitleVi.Trim(); vi.Content = request.ContentVi.Trim(); }
@@ -226,9 +232,12 @@ public sealed class AdminController(VivoiceDbContext db, AnalyticsService analyt
     public async Task<IActionResult> UpdateAgreement(long agreementId, SponsorshipAgreementWriteRequest request, CancellationToken cancellationToken)
     {
         var validation = await ValidateAgreementAsync(request, cancellationToken); if (validation is not null) return validation;
-        var agreement = await db.SponsorshipAgreements.FirstOrDefaultAsync(x => x.Id == agreementId, cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        var agreement = await db.SponsorshipAgreements.Include(x => x.Payments).FirstOrDefaultAsync(x => x.Id == agreementId, cancellationToken);
         if (agreement is null) return NotFound(new { code = "AGREEMENT_NOT_FOUND", message = "Không tìm thấy hợp đồng." });
-        ApplyAgreement(agreement, request); await db.SaveChangesAsync(cancellationToken); await AuditAsync("AGREEMENT_UPDATE", "SponsorshipAgreement", agreement.Id.ToString(), cancellationToken);
+        if (SponsorshipPaymentPolicy.IsCommitmentBelowReceived(request.CommittedAmount, agreement.Payments.Sum(payment => payment.ReceivedAmount)))
+            return Conflict(new { code = "COMMITMENT_CONFLICT", message = "Giá trị hợp đồng không thể thấp hơn tổng khoản đã nhận." });
+        ApplyAgreement(agreement, request); await db.SaveChangesAsync(cancellationToken); await AuditAsync("AGREEMENT_UPDATE", "SponsorshipAgreement", agreement.Id.ToString(), cancellationToken); await transaction.CommitAsync(cancellationToken);
         return Ok(new { agreement.Id });
     }
 
@@ -236,9 +245,16 @@ public sealed class AdminController(VivoiceDbContext db, AnalyticsService analyt
     public async Task<IActionResult> AddPayment(long agreementId, SponsorshipPaymentWriteRequest request, CancellationToken cancellationToken)
     {
         if (request.ReceivedAmount <= 0 || request.ReceivedAtUtc == default) return BadRequest(new { code = "VALIDATION_ERROR", message = "Số tiền nhận và thời điểm nhận phải hợp lệ." });
-        if (!await db.SponsorshipAgreements.AnyAsync(x => x.Id == agreementId, cancellationToken)) return NotFound(new { code = "AGREEMENT_NOT_FOUND", message = "Không tìm thấy hợp đồng." });
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        var agreement = await db.SponsorshipAgreements.Include(x => x.Payments).FirstOrDefaultAsync(x => x.Id == agreementId, cancellationToken);
+        if (agreement is null) return NotFound(new { code = "AGREEMENT_NOT_FOUND", message = "Không tìm thấy hợp đồng." });
+        var validation = SponsorshipPaymentPolicy.Validate(agreement.Status, agreement.CommittedAmount, agreement.Payments.Sum(payment => payment.ReceivedAmount), request.ReceivedAmount);
+        if (validation == SponsorshipPaymentValidation.AgreementCancelled)
+            return Conflict(new { code = "AGREEMENT_CANCELLED", message = "Không thể ghi nhận thanh toán cho hợp đồng đã hủy." });
+        if (validation == SponsorshipPaymentValidation.CommitmentExceeded)
+            return Conflict(new { code = "PAYMENT_EXCEEDS_COMMITMENT", message = "Khoản thanh toán vượt giá trị hợp đồng còn lại." });
         var payment = new SponsorshipPayment { SponsorshipAgreementId = agreementId, ReceivedAmount = request.ReceivedAmount, ReceivedAtUtc = request.ReceivedAtUtc.ToUniversalTime() };
-        db.SponsorshipPayments.Add(payment); await db.SaveChangesAsync(cancellationToken); await AuditAsync("PAYMENT_CREATE", "SponsorshipPayment", payment.Id.ToString(), cancellationToken);
+        db.SponsorshipPayments.Add(payment); await db.SaveChangesAsync(cancellationToken); await AuditAsync("PAYMENT_CREATE", "SponsorshipPayment", payment.Id.ToString(), cancellationToken); await transaction.CommitAsync(cancellationToken);
         return Created($"/api/admin/sponsorship-agreements/{agreementId}/payments/{payment.Id}", new { payment.Id });
     }
 
@@ -266,7 +282,7 @@ public sealed class AdminController(VivoiceDbContext db, AnalyticsService analyt
     private async Task<ActionResult?> ValidateAdvertisementAsync(AdvertisementWriteRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Name) || !IsHttpUrl(request.ImageUrl) || !IsHttpUrl(request.TargetUrl) || request.Placement is null || request.Placement.Trim().ToUpperInvariant() is not ("LEFT" or "RIGHT") || request.DisplayOrder < 1 || request.StartsAtUtc == default || (request.EndsAtUtc is not null && request.EndsAtUtc <= request.StartsAtUtc))
-            return BadRequest(new { code = "VALIDATION_ERROR", message = "Kiểm tra tên, URL HTTP(S), vị trí, thứ tự và thời gian quảng cáo." });
+            return BadRequest(new { code = "VALIDATION_ERROR", message = "Kiểm tra tên, URL HTTPS, vị trí, thứ tự và thời gian quảng cáo." });
         if (request.SponsorId is > 0 && !await db.Sponsors.AnyAsync(x => x.Id == request.SponsorId, cancellationToken)) return BadRequest(new { code = "SPONSOR_NOT_FOUND", message = "Đối tác liên kết không tồn tại." });
         if (request.SponsorId is <= 0) return BadRequest(new { code = "VALIDATION_ERROR", message = "SponsorId phải là số dương hoặc để trống." });
         return null;
@@ -301,7 +317,7 @@ public sealed class AdminController(VivoiceDbContext db, AnalyticsService analyt
         agreement.SponsorId = request.SponsorId; agreement.CommittedAmount = request.CommittedAmount; agreement.Currency = "USD"; agreement.Status = request.Status.Trim().ToLowerInvariant(); agreement.StartsAtUtc = request.StartsAtUtc.ToUniversalTime(); agreement.EndsAtUtc = request.EndsAtUtc?.ToUniversalTime();
     }
 
-    private static bool IsHttpUrl(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
+    private static bool IsHttpUrl(string? value) => ExternalHttpsUrlPolicy.IsValid(value);
     private static bool IsUsd(string? currency) => string.Equals(currency?.Trim(), "USD", StringComparison.OrdinalIgnoreCase);
     private static string? NormalizeLanguage(string value) => value.Trim().ToLowerInvariant() is "vi" or "ko" or "ja" or "zh" or "th" ? value.Trim().ToLowerInvariant() : null;
 
@@ -309,12 +325,12 @@ public sealed class AdminController(VivoiceDbContext db, AnalyticsService analyt
     {
         if (string.IsNullOrWhiteSpace(request.Slug) || string.IsNullOrWhiteSpace(request.NameVi) || string.IsNullOrWhiteSpace(request.SummaryVi) || request.Latitude is < -90 or > 90 || request.Longitude is < -180 or > 180)
             return BadRequest(new { code = "VALIDATION_ERROR", message = "Kiểm tra slug, tên, mô tả và tọa độ POI." });
-        if (!string.IsNullOrWhiteSpace(request.ImageUrl) && (!Uri.TryCreate(request.ImageUrl, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp)))
-            return BadRequest(new { code = "INVALID_URL", message = "Image URL phải là HTTP hoặc HTTPS." });
+        if (!string.IsNullOrWhiteSpace(request.ImageUrl) && !ExternalHttpsUrlPolicy.IsValid(request.ImageUrl))
+            return BadRequest(new { code = "INVALID_URL", message = "Image URL phải dùng HTTPS." });
         return null;
     }
 
-    private static bool IsValidTopic(TopicWriteRequest request) => request.Category is "culture" or "food" or "tourism" && !string.IsNullOrWhiteSpace(request.TitleVi) && !string.IsNullOrWhiteSpace(request.ContentVi);
+    private static bool IsValidTopic(TopicWriteRequest request) => TopicCategoryPolicy.Normalize(request.Category) is not null && !string.IsNullOrWhiteSpace(request.TitleVi) && !string.IsNullOrWhiteSpace(request.ContentVi);
     private static Poi BuildPoi(PoiWriteRequest request) => new() { Slug = request.Slug.Trim().ToLowerInvariant(), Latitude = request.Latitude, Longitude = request.Longitude, ImageUrl = request.ImageUrl?.Trim(), DisplayOrder = request.DisplayOrder, IsActive = request.IsActive, Translations = [new PoiTranslation { LanguageCode = "vi", Name = request.NameVi.Trim(), Summary = request.SummaryVi.Trim() }] };
     private static object ToAdminPoi(Poi poi) { var vi = poi.Translations.FirstOrDefault(x => x.LanguageCode == "vi"); return new { poi.Id, poi.Slug, poi.Latitude, poi.Longitude, poi.ImageUrl, poi.DisplayOrder, poi.IsActive, NameVi = vi?.Name ?? string.Empty, SummaryVi = vi?.Summary ?? string.Empty }; }
     private static object ToAdminTopic(PoiTopic topic) { var vi = topic.Translations.FirstOrDefault(x => x.LanguageCode == "vi"); return new { topic.Id, topic.PoiId, topic.Category, topic.DisplayOrder, topic.IsActive, TitleVi = vi?.Title ?? string.Empty, ContentVi = vi?.Content ?? string.Empty }; }
@@ -324,4 +340,38 @@ public sealed class AdminController(VivoiceDbContext db, AnalyticsService analyt
         var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (long.TryParse(id, out var adminId)) { db.AuditLogs.Add(new AuditLog { AdminUserId = adminId, Action = action, EntityType = entityType, EntityId = entityId }); await db.SaveChangesAsync(cancellationToken); }
     }
+}
+
+public static class ExternalHttpsUrlPolicy
+{
+    public static bool IsValid(string? value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps;
+}
+
+public static class TopicCategoryPolicy
+{
+    public static string? Normalize(string? category) => category?.Trim().ToLowerInvariant() is "culture" or "food" or "tourism" ? category.Trim().ToLowerInvariant() : null;
+}
+
+public enum SponsorshipPaymentValidation
+{
+    Accepted,
+    AgreementCancelled,
+    CommitmentExceeded
+}
+
+public static class SponsorshipPaymentPolicy
+{
+    public static SponsorshipPaymentValidation Validate(string? status, decimal committedAmount, decimal receivedAmount, decimal newPayment) =>
+        string.Equals(status, "cancelled", StringComparison.OrdinalIgnoreCase)
+            ? SponsorshipPaymentValidation.AgreementCancelled
+            : WouldExceedCommitment(committedAmount, receivedAmount, newPayment)
+                ? SponsorshipPaymentValidation.CommitmentExceeded
+                : SponsorshipPaymentValidation.Accepted;
+
+    public static bool WouldExceedCommitment(decimal committedAmount, decimal receivedAmount, decimal newPayment) =>
+        committedAmount <= 0m || receivedAmount < 0m || newPayment <= 0m || receivedAmount + newPayment > committedAmount;
+
+    public static bool IsCommitmentBelowReceived(decimal committedAmount, decimal receivedAmount) =>
+        committedAmount <= 0m || receivedAmount < 0m || receivedAmount > committedAmount;
 }

@@ -35,7 +35,7 @@ public sealed class PublicContentService(VivoiceDbContext db)
             return null;
         }
 
-        return poi.Topics.OrderBy(x => x.DisplayOrder).Select(topic =>
+        return poi.Topics.Where(topic => topic.Translations.Count != 0).OrderBy(x => x.DisplayOrder).Select(topic =>
         {
             var translation = FindTopicTranslation(topic.Translations, languageCode);
             return new TopicDto(topic.Id, topic.Category, translation.Value.Title, topic.DisplayOrder, translation.FallbackUsed);

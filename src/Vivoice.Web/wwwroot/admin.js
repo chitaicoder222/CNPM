@@ -3,9 +3,23 @@
 (() => {
   const byId = id => document.getElementById(id);
   const state = { pois: [], selectedPoi: null, topics: [], selectedTopic: null, poiTranslations: [], topicTranslations: [], sponsors: [], ads: [], agreements: [], rates: [] };
+  let antiforgeryToken;
 
+  function requiresAntiforgery(method) { return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method.toUpperCase()); }
+  async function getAntiforgeryToken() {
+    if (antiforgeryToken) return antiforgeryToken;
+    const response = await fetch("/api/admin/auth/antiforgery", { credentials: "same-origin", headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error("Không thể chuẩn bị bảo vệ phiên quản trị.");
+    const body = await response.json();
+    if (!body.token) throw new Error("Không thể chuẩn bị bảo vệ phiên quản trị.");
+    antiforgeryToken = body.token;
+    return antiforgeryToken;
+  }
   async function api(path, options = {}) {
-    const response = await fetch(path, { credentials: "same-origin", headers: { Accept: "application/json", ...(options.headers || {}) }, ...options });
+    const method = (options.method || "GET").toUpperCase();
+    const headers = { Accept: "application/json", ...(options.headers || {}) };
+    if (requiresAntiforgery(method)) headers["X-VIVOICE-CSRF"] = await getAntiforgeryToken();
+    const response = await fetch(path, { credentials: "same-origin", ...options, method, headers });
     if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.message || `HTTP ${response.status}`); }
     return response.status === 204 ? null : response.json();
   }
@@ -177,8 +191,8 @@
     try { await api("/api/admin/revenue-rates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); byId("rateForm").reset(); await Promise.all([loadRates(), loadDashboard()]); writeStatus("rateStatus", "Đã thêm mức giá mới và đóng khoảng hiệu lực của mức trước.", "success"); } catch (error) { writeStatus("rateStatus", error.message, "error"); }
   }
 
-  byId("loginForm").addEventListener("submit", async event => { event.preventDefault(); try { await api("/api/admin/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: byId("displayName").value, phone: byId("phone").value, password: byId("password").value }) }); await showAdmin(); } catch (error) { writeStatus("loginStatus", error.message, "error"); } });
-  byId("logoutButton").addEventListener("click", async () => { await api("/api/admin/auth/logout", { method: "POST" }); showLogin(); });
+  byId("loginForm").addEventListener("submit", async event => { event.preventDefault(); try { await api("/api/admin/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: byId("displayName").value, phone: byId("phone").value, password: byId("password").value }) }); antiforgeryToken = undefined; await showAdmin(); } catch (error) { writeStatus("loginStatus", error.message, "error"); } });
+  byId("logoutButton").addEventListener("click", async () => { try { await api("/api/admin/auth/logout", { method: "POST" }); showLogin(); } finally { antiforgeryToken = undefined; } });
   byId("dashboardFilter").addEventListener("submit", event => { event.preventDefault(); loadDashboard(); });
   byId("poiSearch").addEventListener("input", renderPois); byId("newPoiButton").addEventListener("click", newPoi); byId("poiForm").addEventListener("submit", savePoi);
   byId("poiTranslationLanguage").addEventListener("change", fillPoiTranslation); byId("poiTranslationForm").addEventListener("submit", savePoiTranslation);
