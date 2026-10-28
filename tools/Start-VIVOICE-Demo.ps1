@@ -105,9 +105,11 @@ function Test-QuickTunnel {
     $home = Get-HttpStatus -Url "$TunnelUrl/" -TimeoutSeconds 10
     $pois = Get-HttpStatus -Url "$TunnelUrl/api/public/pois?lang=vi" -TimeoutSeconds 10
     $anonymousAdmin = Get-HttpStatus -Url "$TunnelUrl/api/admin/dashboard" -TimeoutSeconds 10
-    return $home -eq 200 -and $pois -eq 200 -and $anonymousAdmin -eq 401
+    return $home -eq 200 -and $pois -eq 200 -and $anonymousAdmin -eq 404
 }
 
+$previousPublicOnly = $null
+$publicOnlyConfigured = $false
 try {
     if (-not (Test-Path -LiteralPath $projectPath -PathType Leaf)) { throw "VIVOICE project file was not found at the expected repository path." }
     if ($Stop) {
@@ -119,6 +121,9 @@ try {
         exit 0
     }
 
+    $previousPublicOnly = $env:VivoiceDemo__PublicOnly
+    $env:VivoiceDemo__PublicOnly = "true"
+    $publicOnlyConfigured = $true
     $env:ASPNETCORE_ENVIRONMENT = "Development"
     $env:DOTNET_ENVIRONMENT = "Development"
     $state = Get-DemoState
@@ -183,7 +188,7 @@ try {
     }
     if (-not (Test-QuickTunnel -TunnelUrl $tunnelUrl)) {
         Stop-OwnedProcess -ProcessId $tunnelProcess.Id -NamePattern "^cloudflared(\.exe)?$" -RequiredCommandText $origin -Label "unverified Cloudflare tunnel"
-        throw "Quick Tunnel probes did not return public 200/200 and anonymous Admin 401. The URL is not reported as successful."
+        throw "Quick Tunnel probes did not return public 200/200 and blocked Admin 404. The URL is not reported as successful."
     }
 
     Save-DemoState ([ordered]@{ Version = 1; Origin = $origin; WebProcessId = $webProcessId; TunnelProcessId = $tunnelProcess.Id; TunnelUrl = $tunnelUrl; UpdatedAtUtc = [DateTime]::UtcNow.ToString("o") })
@@ -192,4 +197,14 @@ try {
 catch {
     Write-Error "VIVOICE demo was not started: $($_.Exception.Message)"
     exit 1
+}
+finally {
+    if ($publicOnlyConfigured) {
+        if ($null -eq $previousPublicOnly) {
+            Remove-Item -Path Env:VivoiceDemo__PublicOnly -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:VivoiceDemo__PublicOnly = $previousPublicOnly
+        }
+    }
 }
