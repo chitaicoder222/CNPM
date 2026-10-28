@@ -10,3 +10,4 @@ appsettings.Local.json
 logs/
 TestResults/
 docs/WORD_RENDER/
+.vivoice-demo/
