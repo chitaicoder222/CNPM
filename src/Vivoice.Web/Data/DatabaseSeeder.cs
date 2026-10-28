@@ -1,5 +1,5 @@
-// Purpose: Adds non-sensitive initial VIVOICE reference data after the database migration completes.
-// Responsibility: Seeds six Vietnamese POIs, Vietnamese narration and the configured initial visit rate idempotently.
+// Purpose: Adds non-sensitive VIVOICE reference content through the explicit database initializer.
+// Responsibility: Seeds an add-only rate/POI/topic/translation baseline without overwriting Administrator-managed content.
 using Microsoft.EntityFrameworkCore;
 using Vivoice.Web.Data.Entities;
 
@@ -9,18 +9,20 @@ public static class DatabaseSeeder
 {
     public static async Task SeedAsync(VivoiceDbContext db, CancellationToken cancellationToken = default)
     {
-        var plan = ContentSeedPlan.Create(
-            hasRevenueRate: await db.VisitRevenueRates.AnyAsync(cancellationToken),
-            hasPoi: await db.Pois.AnyAsync(cancellationToken));
-        if (!plan.HasWork)
-        {
-            return;
-        }
+        var definitionsBySlug = VivoiceBaselineContent.Pois.ToDictionary(item => item.Slug, StringComparer.Ordinal);
+        var existingPois = await db.Pois
+            .Include(poi => poi.Translations)
+            .Include(poi => poi.Topics)
+            .ThenInclude(topic => topic.Translations)
+            .Where(poi => definitionsBySlug.Keys.Contains(poi.Slug))
+            .ToListAsync(cancellationToken);
+        var poisBySlug = existingPois.ToDictionary(item => item.Slug, StringComparer.Ordinal);
+        var hasRevenueRate = await db.VisitRevenueRates.AnyAsync(cancellationToken);
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            if (plan.CreateRevenueRate)
+            if (!hasRevenueRate)
             {
                 db.VisitRevenueRates.Add(new VisitRevenueRate
                 {
@@ -30,12 +32,22 @@ public static class DatabaseSeeder
                 });
             }
 
-            if (plan.CreatePois)
+            foreach (var definition in VivoiceBaselineContent.Pois)
             {
-                AddInitialPois(db);
+                if (!poisBySlug.TryGetValue(definition.Slug, out var existingPoi))
+                {
+                    db.Pois.Add(CreatePoi(definition));
+                    continue;
+                }
+
+                AddMissingTranslations(existingPoi, definition);
             }
 
-            await db.SaveChangesAsync(cancellationToken);
+            if (db.ChangeTracker.HasChanges())
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
             await transaction.CommitAsync(cancellationToken);
         }
         catch
@@ -45,46 +57,67 @@ public static class DatabaseSeeder
         }
     }
 
-    private static void AddInitialPois(VivoiceDbContext db)
+    private static Poi CreatePoi(BaselinePoiDefinition definition) => new()
     {
-        var seeds = new[]
+        Slug = definition.Slug,
+        Latitude = definition.Latitude,
+        Longitude = definition.Longitude,
+        DisplayOrder = definition.DisplayOrder,
+        Translations = definition.Translations.Select(pair => new PoiTranslation
         {
-            ("ha-noi", "Hà Nội", "Thủ đô nghìn năm văn hiến, nơi giao thoa lịch sử và đời sống đương đại.", 21.028511m, 105.804817m),
-            ("ho-chi-minh-city", "Thành phố Hồ Chí Minh", "Nhịp sống năng động với những lớp ký ức đô thị Nam Bộ.", 10.823099m, 106.629664m),
-            ("da-nang", "Đà Nẵng", "Thành phố biển nằm giữa núi, sông và những cây cầu hiện đại.", 16.054407m, 108.202167m),
-            ("hue", "Huế", "Không gian di sản cố đô với âm nhạc, kiến trúc và ẩm thực cung đình.", 16.463713m, 107.590866m),
-            ("hoi-an", "Hội An", "Phố cổ ven sông với nếp sống thương cảng và những chiếc đèn lồng.", 15.880058m, 108.338047m),
-            ("nha-trang", "Nha Trang", "Thành phố biển với vịnh xanh, nhịp sống ven bờ và văn hóa Chăm.", 12.238791m, 109.196749m)
-        };
+            LanguageCode = pair.Key,
+            Name = pair.Value.Name,
+            Summary = pair.Value.Summary
+        }).ToList(),
+        Topics = definition.Topics.Select(CreateTopic).ToList()
+    };
 
-        for (var index = 0; index < seeds.Length; index++)
+    private static PoiTopic CreateTopic(BaselineTopicDefinition definition) => new()
+    {
+        Category = definition.Category,
+        DisplayOrder = definition.DisplayOrder,
+        Translations = definition.Translations.Select(pair => new TopicTranslation
         {
-            var seed = seeds[index];
-            var poi = new Poi
+            LanguageCode = pair.Key,
+            Title = pair.Value.Title,
+            Content = pair.Value.Content,
+            IsPublished = true
+        }).ToList()
+    };
+
+    private static void AddMissingTranslations(Poi existingPoi, BaselinePoiDefinition definition)
+    {
+        foreach (var translation in definition.Translations.Where(pair => existingPoi.Translations.All(existing => !string.Equals(existing.LanguageCode, pair.Key, StringComparison.OrdinalIgnoreCase))))
+        {
+            existingPoi.Translations.Add(new PoiTranslation
             {
-                Slug = seed.Item1,
-                Latitude = seed.Item4,
-                Longitude = seed.Item5,
-                DisplayOrder = index + 1,
-                Translations = [new PoiTranslation { LanguageCode = "vi", Name = seed.Item2, Summary = seed.Item3 }],
-                Topics =
-                [
-                    CreateTopic("culture", 1, "Văn hóa đặc sắc", $"{seed.Item2} lưu giữ những câu chuyện văn hóa gắn với cộng đồng địa phương. Khi tham quan, hãy quan sát kiến trúc, nếp sống và ứng xử để hiểu thêm bản sắc của nơi đây."),
-                    CreateTopic("food", 2, "Ẩm thực nổi tiếng", $"Ẩm thực tại {seed.Item2} phản ánh nguyên liệu, khí hậu và nhịp sống của vùng đất. Hãy ưu tiên cơ sở rõ nguồn gốc và tôn trọng không gian chung khi thưởng thức."),
-                    CreateTopic("tourism", 3, "Điểm du lịch nổi bật", $"Từ {seed.Item2}, du khách có thể kết hợp những điểm tham quan phù hợp theo thời gian, thời tiết và quy định địa phương. Nội dung cần được admin cập nhật khi có thông tin chính thức mới.")
-                ]
-            };
-            db.Pois.Add(poi);
+                LanguageCode = translation.Key,
+                Name = translation.Value.Name,
+                Summary = translation.Value.Summary
+            });
         }
 
-    }
+        foreach (var topicDefinition in definition.Topics)
+        {
+            var existingTopic = existingPoi.Topics.FirstOrDefault(topic => string.Equals(topic.Category, topicDefinition.Category, StringComparison.OrdinalIgnoreCase));
+            if (existingTopic is null)
+            {
+                existingPoi.Topics.Add(CreateTopic(topicDefinition));
+                continue;
+            }
 
-    private static PoiTopic CreateTopic(string category, int order, string title, string content) => new()
-    {
-        Category = category,
-        DisplayOrder = order,
-        Translations = [new TopicTranslation { LanguageCode = "vi", Title = title, Content = content }]
-    };
+            foreach (var translation in topicDefinition.Translations.Where(pair => existingTopic.Translations.All(existing => !string.Equals(existing.LanguageCode, pair.Key, StringComparison.OrdinalIgnoreCase))))
+            {
+                existingTopic.Translations.Add(new TopicTranslation
+                {
+                    LanguageCode = translation.Key,
+                    Title = translation.Value.Title,
+                    Content = translation.Value.Content,
+                    IsPublished = true
+                });
+            }
+        }
+    }
 }
 
 public readonly record struct ContentSeedPlan(bool CreateRevenueRate, bool CreatePois)

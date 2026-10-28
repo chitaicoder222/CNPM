@@ -53,6 +53,7 @@ public sealed class AnalyticsService(VivoiceDbContext db, IConfiguration configu
 
     public async Task<bool> RecordAdvertisementEventAsync(long advertisementId, string eventType, string? sessionId, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(eventType)) return false;
         var normalizedEvent = eventType.Trim().ToLowerInvariant();
         if (normalizedEvent is not ("impression" or "click")) return false;
         var nowUtc = DateTime.UtcNow;

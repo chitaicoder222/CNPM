@@ -32,6 +32,11 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
+      - name: Set up Node.js for frontend unit tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
       - name: Restore unit-test dependencies
         run: dotnet restore tests/Vivoice.Web.Tests/Vivoice.Web.Tests.csproj
 
@@ -40,3 +45,13 @@ jobs:
 
       - name: Run VIVOICE unit tests
         run: dotnet test tests/Vivoice.Web.Tests/Vivoice.Web.Tests.csproj --configuration Release --no-restore --logger "console;verbosity=normal"
+
+      - name: Run frontend JavaScript syntax checks
+        run: |
+          node --check src/Vivoice.Web/wwwroot/public.js
+          node --check src/Vivoice.Web/wwwroot/admin.js
+          node --check src/Vivoice.Web/wwwroot/tts-language.js
+          node --check src/Vivoice.Web/wwwroot/visitor-session.js
+
+      - name: Run frontend unit tests
+        run: node --test tests/Vivoice.Web.Tests/Frontend/*.test.cjs

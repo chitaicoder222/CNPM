@@ -1,8 +1,8 @@
 # Test Strategy, Cases and Results
 
 > **Document ID:** DOC-TEST-001 | **Purpose:** Xác định evidence cần có trước khi một tính năng được gọi VERIFIED.  
-> **Version / Status:** 0.5.0 / SQL RUNTIME VERIFIED; CONNECTION-SOURCE ALIGNMENT STATICALLY VERIFIED | **Owner:** QA Engineer  
-> **Last updated:** 2026-10-26 | **Related:** [Requirements](../01_requirements/REQUIREMENTS.md), [Traceability](../08_traceability/TRACEABILITY.md)
+> **Version / Status:** 0.7.0 / ISOLATED RUNTIME, SERVER-ISSUED SESSION AND TUNNEL COOKIE VERIFIED; BROWSER VERIFICATION PENDING | **Owner:** QA Engineer
+> **Last updated:** 2026-10-28 | **Related:** [Requirements](../01_requirements/REQUIREMENTS.md), [Traceability](../08_traceability/TRACEABILITY.md)
 
 ## Test layers
 
@@ -10,27 +10,39 @@ Current unit tests cover normalization, coarse device categories, explicit datab
 
 | ID | Scenario | Expected result | Status |
 |---|---|---|---|
-| TC-PUB-001 | SQL seed/API returns active POIs | Six initial markers/cards; inactive POI omitted. | NOT RUN |
+| TC-PUB-001 | SQL seed/API returns active POIs | Six initial POIs are returned from isolated SQL data; inactive POI omission still needs a dedicated case. | PASS — isolated API returned six POIs. |
 | TC-PUB-002 | Marker/card/topic selection | Selected POI/topic is synchronized and content is current-language. | NOT RUN |
-| TC-PUB-003 | Browser TTS success/failure | Prior speech cancels; text persists and fallback is honest. | NOT RUN |
-| TC-PUB-004 | Locale switch | `vi/ko/ja/zh/th` labels/content and fallback work. | NOT RUN |
+| TC-PUB-003 | Browser TTS success/failure | Prior speech cancels; text persists; `utterance.lang` follows `narration.languageCode`; unavailable matching voice leaves browser TTS usable. | PARTIAL — 7 Node unit tests cover language/voice selection; browser TTS NOT RUN. |
+| TC-PUB-004 | Locale switch | `vi/ko/ja/zh/th` labels/content and fallback work. | PARTIAL — isolated API verified all five languages with no baseline fallback; browser UI switch NOT RUN. |
+| TC-DATA-001 | Five-language baseline seed | A clean isolated database receives 30 POI and 90 topic translation records; non-Vietnamese total is 96. | PASS — actual initializer produced all counts. |
+| TC-DATA-002 | Add-only seed rerun | A rerun adds no duplicates, restores only an absent baseline topic category, and never overwrites an existing POI/topic/translation edited by Admin. | PASS — edited Korean sentinel preserved; a removed isolated baseline topic was restored from 17 to 18 topics with 90 translations. |
 | TC-PUB-005 | Desktop/mobile ads | Valid schedule appears only at appropriate placement/viewport. | NOT RUN |
-| TC-ADM-001 | Three-field login and protected route | Valid admin enters; bad/anonymous request is denied. | NOT RUN |
+| TC-ADM-001 | Three-field login and protected route | Valid admin enters; bad/anonymous request is denied. | PASS — isolated login/dashboard flow 200; anonymous dashboard 401. |
 | TC-ADM-002 | Dashboard range/rate | Counts and rate-based estimate match seeded SQL rows. | NOT RUN |
 | TC-ADM-003 | Four phone sessions | Dashboard displays four independent `Phone` sessions inside TTL. | NOT RUN |
-| TC-ADM-004 | POI/topic/translation CRUD | Edit persists; public GET returns changed data. | NOT RUN |
-| TC-ADM-005 | Ads/sponsors/rates | Validation rejects invalid URL, rate-order conflict, payment above commitment and payment on cancelled agreement. | NOT RUN |
-| TC-SEC-001 | Secret and input controls | No real credential in source; unsafe input/auth bypass, rate limit and CSRF controls fail safely. | PARTIAL — generic test fixture and targeted static scan PASS; input/auth/rate-limit/CSRF runtime checks NOT RUN. |
+| TC-ADM-004 | POI/topic/translation CRUD | Edit persists; public GET returns changed data; duplicate topic category for the same POI is rejected. | PASS — isolated Admin API created a POI, a Korean translation and a culture topic; a second culture topic returned 409; deactivating the POI removed it from the public result. |
+| TC-ADM-005 | Ads/sponsors/rates | Validation rejects invalid URL, rate-order conflict, payment above commitment and payment on cancelled agreement. | PARTIAL — HTTP POI/ad media URLs returned 400 through the tunnel; rate/payment flows NOT RUN. |
+| TC-ADM-006 | Agreement/payment concurrency | Concurrent commitment reduction and payment cannot both succeed if their combined result would make received money exceed the commitment. | PENDING ISOLATED SQL PROBE. |
+| TC-SEC-001 | Secret and input controls | No real credential in source; unsafe input/auth bypass, rate limit and CSRF controls fail safely. | PARTIAL — static scan, isolated auth/CSRF/rate-limit checks and tunnel cookie checks PASS; distributed abuse remains unverified. |
+| TC-SEC-002 | Admin antiforgery and rate limit | Unsafe Admin request without token is rejected; login/public telemetry exhaustion returns generic 429. | PASS — missing token 400; policy returned 429 after the permitted window. |
+| TC-SEC-003 | Server-issued visitor session | Heartbeat requires a valid protected server-issued session; an arbitrary UUID cannot create a visit. | PASS — no-cookie, arbitrary-body and tampered-cookie heartbeats returned 400; a server-issued cookie produced one visit then no duplicate on the second heartbeat. |
+| TC-SEC-004 | HTTPS tunnel cookie attributes | HTTPS tunnel visitor and Admin cookies are Secure and HTTP-only; valid CSRF login reaches the protected dashboard. | PASS — issue/login/dashboard returned 204/200/200 and both cookies exposed Secure + HttpOnly attributes to the isolated test client. |
+| TC-SEC-005 | Visitor-session issuance recovery | A transient failed session-issuance request is cleared so later heartbeat/ad telemetry can retry without a page reload. | PASS — three browser-independent Node cases cover in-flight sharing, retry after failure and success caching. |
 | TC-UX-001 | Vietnamese font and encoding | Required Vietnamese strings render without missing glyphs, replacement characters, clipping or unexpected wrapping at desktop/mobile widths. | STATIC UTF-8 CHECK PASSED; browser visual check NOT RUN. |
-| TC-PUB-006 | Public navigation and failed fetch | Header/footer contain no Admin link; public API succeeds when loaded from the ASP.NET Core origin and reports a truthful error when unavailable. | NOT RUN — backend blocked by SQL. |
+| TC-PUB-006 | Public navigation and failed fetch | Header/footer contain no Admin link; public API succeeds when loaded from the ASP.NET Core origin and reports a truthful error when unavailable. | PARTIAL — local and tunnel public page/API HTTP checks PASS; browser visual/error presentation NOT RUN. |
 | TC-DKR-001 | Docker SQL Server preflight | Docker CLI/daemon, WSL 2, virtualization and resource checks pass; existing unrelated containers remain untouched. | PASS — preflight only. |
-| TC-DKR-002 | VIVOICE SQL container readiness | New pinned image container becomes healthy, data volume persists, port binds only loopback, and no secret appears in logs. | NOT RUN — container requires explicit approval before creation. |
-| TC-CON-001 | Runtime/design-time connection source alignment | Runtime and EF factory accept the same private `ConnectionStrings:Vivoice` providers, and missing configuration fails without LocalDB fallback. | PASS — static source assertions and build; no secret/configuration execution or database operation. |
+| TC-DKR-002 | VIVOICE SQL container readiness | New pinned image container becomes healthy, data volume persists, port binds only loopback, and no secret appears in logs. | PASS — primary VIVOICE container is healthy on loopback with its named volume; isolated integration used a separate container/resource set. |
+| TC-OPS-001 | Safe demo launcher | Launcher sets Development, waits for local readiness, verifies public/admin tunnel probes, tracks only its own processes and never starts Docker/migrations/seed. | STATIC PENDING — PowerShell parse and code-path inspection required; live run needs approved local configuration. |
+| TC-CON-001 | Runtime/design-time connection source alignment | Runtime and EF factory accept the same private `ConnectionStrings:Vivoice` providers, and missing configuration fails without LocalDB fallback. | PASS — isolated private configuration drove initializer and web host without LocalDB fallback. |
 | TC-INIT-001 | Normal startup command routing | No initializer is invoked without `--initialize-database`; invalid bootstrap-only command is rejected. | PASS — unit test. |
 | TC-INIT-002 | Initializer phase control | Migration runs before content seed; migration failure prevents seed and bootstrap. | PASS — unit test with in-memory fakes, no SQL Server. |
 | TC-INIT-003 | Bootstrap and content-seed policies | Existing Admin prevents bootstrap; missing bootstrap config errors; existing rate/POI state schedules no duplicate seed. | PASS — unit policy test, no SQL Server. |
-| TC-READY-001 | Database readiness policy | Readiness is false when unreachable or migrations are pending. | PASS — unit policy test; endpoint/database execution NOT RUN. |
+| TC-READY-001 | Database readiness policy | Readiness is false when unreachable or migrations are pending. | PARTIAL — unit policy covers unreachable/pending; isolated initialized host returned `/ready` 200. |
 
 ## Results
 
-Executed evidence on 2026-10-27: Debug build passed with 0 warnings/errors; unit tests passed 16/16. The new tests use fakes and pure policies only; they do not start the web host, connect to SQL Server, run migration, seed or bootstrap a real Admin. TC-CON-001 confirms shared fail-closed connection-string validation in runtime/design-time code by static source/build evidence. No EF migration, content seed, application start, browser/API integration, readiness endpoint execution or admin-cookie test ran. SQL Server integration is required before promoting initializer or readiness behavior beyond IMPLEMENTED BUT NOT VERIFIED.
+The CI workflow restores, builds and tests the .NET projects, runs every checked-in frontend Node test and performs syntax checks for `public.js`, `admin.js` and `tts-language.js`; it never starts the host, Docker, migration or a real database.
+
+Executed evidence on 2026-10-28: Release build passed with 0 warnings/errors; .NET unit tests passed 37/37; frontend Node tests passed 10/10; JavaScript syntax checks passed; `git diff --check` passed. The frontend unit tests prove Vietnamese fallback narration resolves to `vi-VN`, all five language metadata values resolve to their matching speech locales, locale/underscore forms normalize safely, exact/prefix voice selection is preferred, and a missing matching voice leaves browser fallback usable. They also prove visitor-session issuance shares an in-flight request, clears a failed issuance and caches only a success. The .NET suite verifies protected cookie issue/tamper handling, HTTPS-only external-media validation and topic-category normalization/conflict protection.
+
+An isolated SQL Server container/database then received the two migrations and the explicit initializer. The command created 6 POIs, 30 POI translations, 18 topics, 90 topic translations, 1 rate and 1 bootstrap Admin. A second initializer run preserved an intentionally changed Korean translation and did not change those counts. A controlled deletion of one isolated baseline topic followed by initializer rerun restored the count from 17 to 18 and translations to 90. The normal web host returned local HTTP 200 for `/health`, `/ready`, public POI/topic/narration data in all five languages, and the public page; anonymous Admin returned 401. An isolated Admin API probe created a POI, Korean POI/topic translations and a culture topic; a duplicate normalized culture category returned 409, and deactivating the POI removed it from the public result. Server-issued session smoke checks rejected no-cookie, arbitrary-body and tampered heartbeats with 400, while a valid cookie recorded only the first heartbeat. A Quick Tunnel returned external HTTP 200 for public page/API, 200 for CSRF/login/dashboard, and Secure/HTTP-only visitor/Admin cookies; HTTP media requests returned 400 before persistence. Browser visual rendering, Leaflet tile behavior, responsive layout, real-device TTS audio and distributed abuse resistance remain unverified.

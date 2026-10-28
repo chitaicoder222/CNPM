@@ -1,8 +1,8 @@
 # Docker SQL Server Development Runbook
 
 > **Document ID:** DOC-OPS-002 | **Purpose:** Thiết lập có kiểm soát SQL Server local cho VIVOICE bằng Docker Desktop mà không làm ảnh hưởng container hay dữ liệu của dự án khác.  
-> **Version / Status:** 0.5.0 / SQL CONTAINER HEALTHY; FACTORY ALIGNED — MIGRATION NOT RUN | **Owner:** Operations Engineer  
-> **Last updated:** 2026-10-26 | **Related:** [Local Setup](LOCAL_SETUP.md), [Database Design](../03_database/DATABASE_DESIGN.md), [Security](../06_security/SECURITY.md), [Test Plan](../07_testing/TEST_PLAN.md)
+> **Version / Status:** 0.6.0 / PRIMARY CONTAINER PRESERVED; ISOLATED INTEGRATION DATABASE VERIFIED | **Owner:** Operations Engineer
+> **Last updated:** 2026-10-28 | **Related:** [Local Setup](LOCAL_SETUP.md), [Database Design](../03_database/DATABASE_DESIGN.md), [Security](../06_security/SECURITY.md), [Test Plan](../07_testing/TEST_PLAN.md)
 
 ## Verified preflight
 
@@ -29,7 +29,7 @@ This preflight does not prove that another SQL instance cannot exist. It proves 
 | Data volume | Present | `vivoice_sqlserver_data` is mounted at `/var/opt/mssql`. |
 | SQL connectivity | Verified | A container-local authenticated SQL query succeeds without exposing credentials. |
 
-No EF migration, application startup, seed operation, reset, public network exposure or Cloudflare tunnel has been run. The application and EF design-time factory now use aligned private connection-string sources and the factory fails without `ConnectionStrings:Vivoice`; the next approved phase must configure that private value and explicitly approve migration.
+No migration, seed, reset or public exposure was performed against the existing VIVOICE database. A separate disposable SQL Server container/database on loopback port 15433 later verified the two migrations, explicit initializer, five-language seed, idempotent rerun and web host. The application and EF design-time factory use aligned private connection-string sources and fail without `ConnectionStrings:Vivoice`.
 
 ## Proposed VIVOICE development topology
 
@@ -47,13 +47,19 @@ The proposed service is a new container named vivoice-sqlserver-dev. It uses the
 
 The VIVOICE web host does not perform EF migrations, content seed, or Admin bootstrap during normal startup. A privileged operator runs the explicit `--initialize-database` command once at a time; normal web runtime uses an account without DDL permission. Add `--bootstrap-admin` only to create the first Admin from private configuration. Do not use the sa account for normal operation beyond the controlled local initialization phase.
 
+## Isolated integration topology
+
+The 2026-10-28 integration test used an additional, uniquely named resource set: `vivoice-sqlserver-integration-20261028`, `vivoice_sqlserver_integration_20261028`, `127.0.0.1:15433` and `VivoiceIntegration20261028`. This separate container used the same pinned SQL Server image but no existing VIVOICE volume, port or database. It is not a replacement for the primary local development container.
+
+The isolated database received the two existing migrations through `--initialize-database`, not through normal web startup. It then contained 6 POIs, 30 POI translations, 18 topics, 90 topic translations, 1 revenue rate and 1 temporary bootstrap Admin. A rerun preserved an intentionally changed Korean translation and did not increase those counts; after removing one isolated baseline topic, another explicit initializer run restored the expected 18 topics and 90 translations. Retain the test resource until its owner approves cleanup; never use `docker compose down -v` against a shared environment.
+
 ## Files prepared before container creation
 
 The project now contains:
 
 - `docker-compose.yml` with only the VIVOICE SQL Server service, named volume, digest-pinned image and loopback bind.
 - `.env.example` with exactly the `MSSQL_SA_PASSWORD` placeholder; `.env` is ignored by Git.
-- The operator-created `.env` remains untracked; its contents are never read into reports or source control. The container, named volume and local image now exist. No application connection string, migration, seed or database reset has been run.
+- The operator-created `.env` remains untracked; its contents are never read into reports or source control. The container, named volume and local image now exist. No application connection string, migration, seed or database reset has been run against the existing VIVOICE database.
 
 The environment template contains no MySQL, JWT or Admin variables. Those legacy names are not referenced by the VIVOICE container or application. The SQL Server password is the only Docker `.env` setting; application connection and bootstrap-admin settings belong in User Secrets or a private application environment, not the Docker `.env` file.
 

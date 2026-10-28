@@ -6,6 +6,8 @@
 
 ## Audit method and evidence boundary
 
+> **Historical-audit note (2026-10-28):** This report preserves the original 2026-10-26 audit evidence. Later isolated-runtime work added five-language baseline translations, CSRF/rate limits, protected visitor cookies, HTTPS media validation, controlled initializer verification and TTS language tests. Read the current [Test Plan](../07_testing/TEST_PLAN.md), [Traceability](../08_traceability/TRACEABILITY.md) and [Live Demo Verification](LIVE_DEMO_VERIFICATION_2026-10-28.md) for current evidence. `Authentication:CookieSecret` was removed because it was never used; persistent Data Protection key-ring design remains open for production.
+
 The audit read PRD, Requirements, Use Cases, Architecture, Database Design/ERD, API Specification, Security, Test Plan, Traceability Matrix, Code Map, application source, migrations, and the two unit-test files. No conclusion below treats a page, controller, service, or migration as live proof by itself.
 
 Executed evidence:

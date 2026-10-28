@@ -7,7 +7,6 @@ public sealed record TopicDto(long Id, string Category, string Title, int Displa
 public sealed record NarrationDto(long TopicId, string Category, string Title, string Content, string LanguageCode, bool FallbackUsed);
 public sealed record AdvertisementDto(long Id, string Name, string ImageUrl, string TargetUrl, string Placement);
 public sealed record AdvertisementEventRequest(string EventType, string? SessionId);
-public sealed record HeartbeatRequest(string SessionId);
 public sealed record HeartbeatResponse(bool VisitRecorded, string DeviceType, int ActiveForSeconds);
 public sealed record AdminLoginRequest(string DisplayName, string Phone, string Password);
 public sealed record PoiWriteRequest(string Slug, decimal Latitude, decimal Longitude, string? ImageUrl, int DisplayOrder, bool IsActive, string NameVi, string SummaryVi);

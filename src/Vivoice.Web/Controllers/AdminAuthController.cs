@@ -1,5 +1,6 @@
 // Purpose: Handles secure three-field administrator sign-in, sign-out and current-principal lookup.
 // Responsibility: Verifies server-side hashed credentials and issues only an HTTP-only authentication cookie.
+using Microsoft.AspNetCore.Antiforgery;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
 using Vivoice.Web.Data;
 using Vivoice.Web.Data.Entities;
 using Vivoice.Web.Models;
@@ -15,11 +17,24 @@ using Vivoice.Web.Services;
 namespace Vivoice.Web.Controllers;
 
 [ApiController]
+[AutoValidateAntiforgeryToken]
 [Route("api/admin/auth")]
-public sealed class AdminAuthController(VivoiceDbContext db) : ControllerBase
+public sealed class AdminAuthController(VivoiceDbContext db, IAntiforgery antiforgery) : ControllerBase
 {
     private readonly PasswordHasher<AdminUser> _hasher = new();
 
+    [AllowAnonymous]
+    [EnableRateLimiting("admin-login")]
+    [HttpGet("antiforgery")]
+    public IActionResult GetAntiforgeryToken()
+    {
+        var tokens = antiforgery.GetAndStoreTokens(HttpContext);
+        Response.Headers.CacheControl = "no-store";
+        return Ok(new { token = tokens.RequestToken });
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting("admin-login")]
     [HttpPost("login")]
     public async Task<IActionResult> Login(AdminLoginRequest request, CancellationToken cancellationToken)
     {

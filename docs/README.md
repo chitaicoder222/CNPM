@@ -21,4 +21,5 @@ Tài liệu Markdown là nguồn kiểm soát có thể truy vết; thư mục `
 | Docker | [Docker SQL Server Runbook](09_operations/DOCKER_SQL_RUNBOOK.md) | Verified preflight, planned compose topology and approval gate |
 | Development | [Code Map](10_development/CODE_MAP.md) | File-level control map |
 | Reports | [Phase 2 Verification](11_reports/PHASE_2_VERIFICATION.md) | Build/test evidence and known limits |
+| Live demo | [Live Demo Verification](11_reports/LIVE_DEMO_VERIFICATION_2026-10-28.md) | Isolated runtime, tunnel, security and explicit browser-limit evidence |
 | Audit | [Implementation Audit](11_reports/IMPLEMENTATION_AUDIT_2026-10-26.md) | Requirement-by-requirement reconciliation, blockers and remediation priority |
