@@ -4,6 +4,8 @@
   const byId = id => document.getElementById(id);
   const state = { pois: [], selectedPoi: null, topics: [], selectedTopic: null, poiTranslations: [], topicTranslations: [], sponsors: [], ads: [], agreements: [], rates: [] };
   let antiforgeryToken;
+  const dashboardRefreshIntervalMs = 10_000;
+  let dashboardRefreshController = null;
 
   function requiresAntiforgery(method) { return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method.toUpperCase()); }
   async function getAntiforgeryToken() {
@@ -24,7 +26,15 @@
     return response.status === 204 ? null : response.json();
   }
   function writeStatus(id, message, stateName = "") { const target = byId(id); target.className = `status-line ${stateName}`; target.textContent = message; }
-  function money(value, currency = "USD") { return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(value || 0); }
+  function finiteNumber(value) { const number = Number(value); return Number.isFinite(number) ? number : null; }
+  function count(value) { const number = finiteNumber(value); return number === null ? "—" : new Intl.NumberFormat("vi-VN").format(number); }
+  function money(value, currency = "USD") {
+    const number = finiteNumber(value);
+    if (number === null) return "—";
+    try { return new Intl.NumberFormat("en-US", { style: "currency", currency: currency || "USD", maximumFractionDigits: 2 }).format(number); }
+    catch { return `${number.toFixed(2)} ${currency || "USD"}`; }
+  }
+  function localDateTime(value) { const date = value ? new Date(value) : null; return date && !Number.isNaN(date.getTime()) ? date.toLocaleString("vi-VN") : "Không xác định"; }
   function utcInput(value) { return value ? new Date(value).toISOString().slice(0, 16) : ""; }
   function inputUtc(id) { const value = byId(id).value; return value ? new Date(value).toISOString() : null; }
   function todayInput(date) { return date.toISOString().slice(0, 10); }
@@ -36,36 +46,73 @@
   function option(selectId, value, label, selected = false) { const item = document.createElement("option"); item.value = String(value); item.textContent = label; item.selected = selected; byId(selectId).append(item); }
 
   async function checkSession() { try { await api("/api/admin/auth/me"); await showAdmin(); } catch { showLogin(); } }
-  function showLogin() { byId("loginView").classList.remove("hidden"); byId("adminView").classList.add("hidden"); }
+  function stopDashboardPolling() {
+    dashboardRefreshController?.stop();
+  }
+  function startDashboardPolling() {
+    dashboardRefreshController?.start();
+  }
+  function showLogin() {
+    stopDashboardPolling();
+    byId("loginView").classList.remove("hidden");
+    byId("adminView").classList.add("hidden");
+  }
   async function showAdmin() {
     byId("loginView").classList.add("hidden"); byId("adminView").classList.remove("hidden");
-    await Promise.all([loadDashboard(), loadPois(), loadSponsors(), loadAdvertisements(), loadAgreements(), loadRates()]);
+    await Promise.all([refreshDashboard({ reason: "initial" }), loadPois(), loadSponsors(), loadAdvertisements(), loadAgreements(), loadRates()]);
     if (!state.selectedPoi && state.pois.length) await selectPoi(state.pois[0]);
+    startDashboardPolling();
   }
 
   function renderDashboard(data) {
     const values = [
-      ["Lượt hợp lệ", data.validVisits], ["Khách duy nhất", data.uniqueVisitors], ["Phiên đang hoạt động", data.activeSessions],
-      ["Thiết bị đang hoạt động", data.activeDevices], ["Ước tính traffic", money(data.trafficEstimate, data.currency)],
+      ["Lượt hợp lệ", count(data.validVisits)], ["Khách duy nhất", count(data.uniqueVisitors)], ["Phiên đang hoạt động", count(data.activeSessions)],
+      ["Thiết bị đang hoạt động", count(data.activeDevices)], ["Ước tính traffic", money(data.trafficEstimate, data.currency)],
       ["Doanh thu hợp đồng", money(data.contractedRevenue, data.currency)], ["Đã nhận trong kỳ", money(data.receivedRevenue, data.currency)],
-      ["Còn phải thu", money(data.outstandingRevenue, data.currency)], ["Đối tác hoạt động", data.activeSponsors]
+      ["Còn phải thu", money(data.outstandingRevenue, data.currency)], ["Đối tác hoạt động", count(data.activeSponsors)]
     ];
     const metrics = byId("metrics"); metrics.replaceChildren();
     values.forEach(([label, value]) => { const card = document.createElement("div"); card.className = "metric"; const name = document.createElement("span"); name.textContent = label; const number = document.createElement("strong"); number.textContent = String(value); card.append(name, number); metrics.append(card); });
-    const deviceText = Object.entries(data.activeDevicesByType).map(([type, count]) => `${type}: ${count}`).join(" · ");
-    writeStatus("deviceStatus", deviceText || "Chưa có thiết bị đang hoạt động.");
-    buttonList("visitTrend", data.visitsByDate, item => { const fragment = document.createDocumentFragment(); const title = document.createElement("strong"); title.textContent = item.date; const note = document.createElement("span"); note.className = "status-line"; note.textContent = `${item.visits} lượt hợp lệ`; fragment.append(title, note); return fragment; }, () => undefined);
-    byId("adMetrics").textContent = `Hiển thị: ${data.advertisementImpressions} · Nhấp: ${data.advertisementClicks}. Dữ liệu tính trong khoảng lọc.`;
+    const deviceText = Object.entries(data.activeDevicesByType || {}).map(([type, deviceCount]) => `${type}: ${count(deviceCount)}`).join(" · ");
+    const activeWindow = finiteNumber(data.activeWindowSeconds);
+    const windowText = activeWindow === null ? "" : ` Cửa sổ hoạt động: ${count(activeWindow)} giây.`;
+    writeStatus("deviceStatus", `${deviceText || "Chưa có thiết bị đang hoạt động."}${windowText}`);
+    buttonList("visitTrend", Array.isArray(data.visitsByDate) ? data.visitsByDate : [], item => { const fragment = document.createDocumentFragment(); const title = document.createElement("strong"); title.textContent = item.date || "Không xác định"; const note = document.createElement("span"); note.className = "status-line"; note.textContent = `${count(item.visits)} lượt hợp lệ`; fragment.append(title, note); return fragment; }, () => undefined);
+    byId("adMetrics").textContent = `Hiển thị: ${count(data.advertisementImpressions)} · Nhấp: ${count(data.advertisementClicks)}. Dữ liệu tính trong khoảng lọc.`;
   }
-  async function loadDashboard() {
-    const from = new Date(`${byId("fromDate").value}T00:00:00Z`).toISOString();
-    const to = new Date(`${byId("toDate").value}T23:59:59Z`).toISOString();
-    try { renderDashboard(await api(`/api/admin/dashboard?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)); await loadActiveDevices(); }
-    catch (error) { writeStatus("deviceStatus", error.message, "error"); }
+  function dashboardRange() {
+    const fromDate = byId("fromDate").value;
+    const toDate = byId("toDate").value;
+    const from = new Date(`${fromDate}T00:00:00Z`);
+    const to = new Date(`${toDate}T23:59:59Z`);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) throw new Error("Hãy chọn đầy đủ khoảng ngày hợp lệ.");
+    if (from > to) throw new Error("Ngày bắt đầu không thể sau ngày kết thúc.");
+    return { from: from.toISOString(), to: to.toISOString() };
+  }
+  async function refreshDashboardData(reason = "manual") {
+    const refreshButton = byId("dashboardRefreshButton");
+    refreshButton.disabled = true;
+    writeStatus("dashboardRefreshStatus", reason === "auto" ? "Đang tự cập nhật…" : "Đang cập nhật…");
+    try {
+      const { from, to } = dashboardRange();
+      const dashboard = await api(`/api/admin/dashboard?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      renderDashboard(dashboard);
+      await loadActiveDevices();
+      writeStatus("dashboardRefreshStatus", `Đã cập nhật ${localDateTime(new Date().toISOString())}. Tự làm mới mỗi 10 giây khi trang đang mở.`, "success");
+      return true;
+    } catch (error) {
+      writeStatus("dashboardRefreshStatus", `Không thể cập nhật dashboard: ${error.message}`, "error");
+      return false;
+    } finally {
+      refreshButton.disabled = false;
+    }
+  }
+  function refreshDashboard({ reason = "manual" } = {}) {
+    return dashboardRefreshController ? dashboardRefreshController.refreshNow(reason) : refreshDashboardData(reason);
   }
   async function loadActiveDevices() {
     const devices = await api("/api/admin/devices/active");
-    buttonList("activeDevices", devices, item => { const fragment = document.createDocumentFragment(); const title = document.createElement("strong"); title.textContent = item.deviceType; const note = document.createElement("span"); note.className = "status-line"; note.textContent = `${item.browserFamily} · ${item.operatingSystem} · hoạt động ${new Date(item.lastSeenAtUtc).toLocaleString("vi-VN")}`; fragment.append(title, note); return fragment; }, () => undefined);
+    buttonList("activeDevices", Array.isArray(devices) ? devices : [], item => { const fragment = document.createDocumentFragment(); const title = document.createElement("strong"); title.textContent = item.deviceType || "Thiết bị không xác định"; const note = document.createElement("span"); note.className = "status-line"; note.textContent = `${item.browserFamily || "Trình duyệt không xác định"} · ${item.operatingSystem || "Hệ điều hành không xác định"} · hoạt động ${localDateTime(item.lastSeenAtUtc)}`; fragment.append(title, note); return fragment; }, () => undefined);
   }
 
   function renderPois() {
@@ -152,7 +199,7 @@
   function newSponsor() { byId("sponsorForm").reset(); byId("sponsorId").value = ""; byId("sponsorActive").checked = true; }
   async function saveSponsor(event) {
     event.preventDefault(); const id = byId("sponsorId").value; const body = { name: byId("sponsorName").value, contactNote: byId("sponsorContact").value || null, isActive: byId("sponsorActive").checked };
-    try { await api(`/api/admin/sponsors${id ? `/${id}` : ""}`, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); await loadSponsors(); writeStatus("sponsorStatus", "Đã lưu đối tác.", "success"); } catch (error) { writeStatus("sponsorStatus", error.message, "error"); }
+    try { await api(`/api/admin/sponsors${id ? `/${id}` : ""}`, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); await Promise.all([loadSponsors(), refreshDashboard({ reason: "mutation" })]); writeStatus("sponsorStatus", "Đã lưu đối tác.", "success"); } catch (error) { writeStatus("sponsorStatus", error.message, "error"); }
   }
 
   async function loadAdvertisements() {
@@ -164,7 +211,7 @@
   async function saveAd(event) {
     event.preventDefault(); const id = byId("adId").value; const sponsorValue = byId("adSponsor").value;
     const body = { sponsorId: sponsorValue ? Number(sponsorValue) : null, name: byId("adName").value, imageUrl: byId("adImageUrl").value, targetUrl: byId("adTargetUrl").value, placement: byId("adPlacement").value, startsAtUtc: inputUtc("adStartsAt"), endsAtUtc: inputUtc("adEndsAt"), displayOrder: Number(byId("adOrder").value), isActive: byId("adActive").checked };
-    try { await api(`/api/admin/advertisements${id ? `/${id}` : ""}`, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); await loadAdvertisements(); writeStatus("adStatus", "Đã lưu quảng cáo.", "success"); } catch (error) { writeStatus("adStatus", error.message, "error"); }
+    try { await api(`/api/admin/advertisements${id ? `/${id}` : ""}`, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); await Promise.all([loadAdvertisements(), refreshDashboard({ reason: "mutation" })]); writeStatus("adStatus", "Đã lưu quảng cáo.", "success"); } catch (error) { writeStatus("adStatus", error.message, "error"); }
   }
 
   async function loadAgreements() {
@@ -175,11 +222,11 @@
   function newAgreement() { byId("agreementForm").reset(); byId("agreementId").value = ""; byId("agreementStatus").value = "draft"; byId("agreementStartsAt").value = utcInput(new Date().toISOString()); }
   async function saveAgreement(event) {
     event.preventDefault(); const id = byId("agreementId").value; const body = { sponsorId: Number(byId("agreementSponsor").value), committedAmount: Number(byId("agreementAmount").value), currency: "USD", status: byId("agreementStatus").value, startsAtUtc: inputUtc("agreementStartsAt"), endsAtUtc: inputUtc("agreementEndsAt") };
-    try { await api(`/api/admin/sponsorship-agreements${id ? `/${id}` : ""}`, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); await loadAgreements(); writeStatus("agreementStatusText", "Đã lưu hợp đồng.", "success"); } catch (error) { writeStatus("agreementStatusText", error.message, "error"); }
+    try { await api(`/api/admin/sponsorship-agreements${id ? `/${id}` : ""}`, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); await Promise.all([loadAgreements(), refreshDashboard({ reason: "mutation" })]); writeStatus("agreementStatusText", "Đã lưu hợp đồng.", "success"); } catch (error) { writeStatus("agreementStatusText", error.message, "error"); }
   }
   async function savePayment(event) {
     event.preventDefault(); const agreementId = byId("paymentAgreement").value; const body = { receivedAmount: Number(byId("paymentAmount").value), receivedAtUtc: inputUtc("paymentReceivedAt") };
-    try { await api(`/api/admin/sponsorship-agreements/${agreementId}/payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); byId("paymentForm").reset(); await Promise.all([loadAgreements(), loadDashboard()]); writeStatus("paymentStatus", "Đã ghi nhận khoản tiền; lịch sử không bị ghi đè.", "success"); } catch (error) { writeStatus("paymentStatus", error.message, "error"); }
+    try { await api(`/api/admin/sponsorship-agreements/${agreementId}/payments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); byId("paymentForm").reset(); await Promise.all([loadAgreements(), refreshDashboard({ reason: "mutation" })]); writeStatus("paymentStatus", "Đã ghi nhận khoản tiền; lịch sử không bị ghi đè.", "success"); } catch (error) { writeStatus("paymentStatus", error.message, "error"); }
   }
 
   async function loadRates() {
@@ -188,12 +235,17 @@
   }
   async function saveRate(event) {
     event.preventDefault(); const body = { amount: Number(byId("rateAmount").value), currency: "USD", effectiveFromUtc: inputUtc("rateEffectiveFrom") };
-    try { await api("/api/admin/revenue-rates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); byId("rateForm").reset(); await Promise.all([loadRates(), loadDashboard()]); writeStatus("rateStatus", "Đã thêm mức giá mới và đóng khoảng hiệu lực của mức trước.", "success"); } catch (error) { writeStatus("rateStatus", error.message, "error"); }
+    try { await api("/api/admin/revenue-rates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); byId("rateForm").reset(); await Promise.all([loadRates(), refreshDashboard({ reason: "mutation" })]); writeStatus("rateStatus", "Đã thêm mức giá mới và đóng khoảng hiệu lực của mức trước.", "success"); } catch (error) { writeStatus("rateStatus", error.message, "error"); }
   }
 
   byId("loginForm").addEventListener("submit", async event => { event.preventDefault(); try { await api("/api/admin/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ displayName: byId("displayName").value, phone: byId("phone").value, password: byId("password").value }) }); antiforgeryToken = undefined; await showAdmin(); } catch (error) { writeStatus("loginStatus", error.message, "error"); } });
-  byId("logoutButton").addEventListener("click", async () => { try { await api("/api/admin/auth/logout", { method: "POST" }); showLogin(); } finally { antiforgeryToken = undefined; } });
-  byId("dashboardFilter").addEventListener("submit", event => { event.preventDefault(); loadDashboard(); });
+  byId("logoutButton").addEventListener("click", async () => {
+    try { await api("/api/admin/auth/logout", { method: "POST" }); }
+    catch (error) { writeStatus("dashboardRefreshStatus", `Không thể xác nhận đăng xuất: ${error.message}`, "error"); }
+    finally { antiforgeryToken = undefined; showLogin(); }
+  });
+  byId("dashboardFilter").addEventListener("submit", event => { event.preventDefault(); void refreshDashboard({ reason: "filter" }); });
+  byId("dashboardRefreshButton").addEventListener("click", () => void refreshDashboard({ reason: "manual" }));
   byId("poiSearch").addEventListener("input", renderPois); byId("newPoiButton").addEventListener("click", newPoi); byId("poiForm").addEventListener("submit", savePoi);
   byId("poiTranslationLanguage").addEventListener("change", fillPoiTranslation); byId("poiTranslationForm").addEventListener("submit", savePoiTranslation);
   byId("newTopicButton").addEventListener("click", newTopic); byId("topicForm").addEventListener("submit", saveTopic); byId("cancelTopicButton").addEventListener("click", () => byId("topicForm").classList.add("hidden"));
@@ -202,6 +254,24 @@
   byId("newSponsorButton").addEventListener("click", newSponsor); byId("sponsorForm").addEventListener("submit", saveSponsor);
   byId("newAgreementButton").addEventListener("click", newAgreement); byId("agreementForm").addEventListener("submit", saveAgreement); byId("paymentForm").addEventListener("submit", savePayment);
   byId("rateForm").addEventListener("submit", saveRate);
+  dashboardRefreshController = window.VivoiceAdminDashboardRefresh?.createDashboardRefreshController({
+    intervalMs: dashboardRefreshIntervalMs,
+    isHidden: () => document.hidden,
+    refresh: refreshDashboardData
+  });
+  if (!dashboardRefreshController) throw new Error("Dashboard refresh controller was not loaded.");
+
+  document.addEventListener("visibilitychange", () => {
+    if (!dashboardRefreshController) return;
+    if (document.hidden) {
+      dashboardRefreshController.pause();
+      if (!dashboardRefreshController.isRefreshing()) writeStatus("dashboardRefreshStatus", "Tạm dừng tự cập nhật khi tab không hiển thị.");
+      return;
+    }
+    dashboardRefreshController.resume();
+    void refreshDashboard({ reason: "resume" });
+  });
+  window.addEventListener("pagehide", stopDashboardPolling);
   const current = new Date(); byId("toDate").value = todayInput(current); current.setDate(current.getDate() - 6); byId("fromDate").value = todayInput(current); byId("paymentReceivedAt").value = utcInput(new Date().toISOString()); byId("rateEffectiveFrom").value = utcInput(new Date(Date.now() + 60000).toISOString());
   checkSession();
 })();

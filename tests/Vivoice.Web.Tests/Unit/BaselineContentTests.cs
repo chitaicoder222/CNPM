@@ -43,4 +43,21 @@ public sealed class BaselineContentTests
         Assert.Equal(72, topicTranslations);
         Assert.Equal(96, poiTranslations + topicTranslations);
     }
+
+    [Fact]
+    public void VietnameseNarrationsMeetTheSubstantiveSourceLengthTarget()
+    {
+        var VietnameseNarrations = VivoiceBaselineContent.Pois
+            .SelectMany(poi => poi.Topics)
+            .Select(topic => topic.Translations["vi"].Content)
+            .ToList();
+
+        Assert.Equal(18, VietnameseNarrations.Count);
+        Assert.Equal(18, VietnameseNarrations.Distinct(StringComparer.Ordinal).Count());
+        Assert.All(VietnameseNarrations, narration =>
+        {
+            var wordCount = narration.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+            Assert.InRange(wordCount, 350, 520);
+        });
+    }
 }

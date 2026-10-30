@@ -140,6 +140,20 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
     context.Response.StatusCode = StatusCodes.Status500InternalServerError;
     await context.Response.WriteAsJsonAsync(new { code = "SERVER_ERROR", message = "Không thể xử lý yêu cầu lúc này." });
 }));
+if (app.Configuration.GetValue<bool>("VivoiceDemo:PublicOnly"))
+{
+    app.Use(async (context, next) =>
+    {
+        if (PublicDemoAccessPolicy.IsAdminSurface(context.Request.Path.Value))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            context.Response.Headers.CacheControl = "no-store";
+            return;
+        }
+
+        await next();
+    });
+}
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseRateLimiter();
