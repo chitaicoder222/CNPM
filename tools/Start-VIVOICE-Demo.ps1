@@ -5,7 +5,8 @@ param(
     [ValidateRange(1024, 65535)]
     [int]$Port = 5078,
     [switch]$NoTunnel,
-    [switch]$Stop
+    [switch]$Stop,
+    [switch]$OpenBrowser
 )
 
 Set-StrictMode -Version Latest
@@ -108,6 +109,18 @@ function Test-QuickTunnel {
     return $home -eq 200 -and $pois -eq 200 -and $anonymousAdmin -eq 404
 }
 
+function Open-VerifiedTunnelUrl {
+    param([string]$TunnelUrl)
+    if (-not $OpenBrowser -or [string]::IsNullOrWhiteSpace($TunnelUrl)) { return }
+    try {
+        Start-Process -FilePath $TunnelUrl
+        Write-LauncherMessage "Opened the verified public demo URL in the default browser."
+    }
+    catch {
+        Write-LauncherMessage "The tunnel is ready, but the browser could not be opened automatically. Copy this URL: $TunnelUrl"
+    }
+}
+
 $previousPublicOnly = $null
 $publicOnlyConfigured = $false
 try {
@@ -159,6 +172,7 @@ try {
     if ($state -and $state.TunnelProcessId -and $state.Origin -eq $origin -and (Test-OwnedProcess -ProcessId ([int]$state.TunnelProcessId) -NamePattern "^cloudflared(\.exe)?$" -RequiredCommandText $origin) -and (Test-QuickTunnel -TunnelUrl $state.TunnelUrl)) {
         Save-DemoState ([ordered]@{ Version = 1; Origin = $origin; WebProcessId = $webProcessId; TunnelProcessId = [int]$state.TunnelProcessId; TunnelUrl = $state.TunnelUrl; UpdatedAtUtc = [DateTime]::UtcNow.ToString("o") })
         Write-LauncherMessage "Reusing verified launcher-owned Quick Tunnel: $($state.TunnelUrl)"
+        Open-VerifiedTunnelUrl -TunnelUrl $state.TunnelUrl
         exit 0
     }
 
@@ -193,6 +207,7 @@ try {
 
     Save-DemoState ([ordered]@{ Version = 1; Origin = $origin; WebProcessId = $webProcessId; TunnelProcessId = $tunnelProcess.Id; TunnelUrl = $tunnelUrl; UpdatedAtUtc = [DateTime]::UtcNow.ToString("o") })
     Write-LauncherMessage "Demo is ready: $tunnelUrl"
+    Open-VerifiedTunnelUrl -TunnelUrl $tunnelUrl
 }
 catch {
     Write-Error "VIVOICE demo was not started: $($_.Exception.Message)"
