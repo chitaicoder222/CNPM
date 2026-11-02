@@ -65,7 +65,7 @@ public sealed class AdminController(VivoiceDbContext db, AnalyticsService analyt
         var poi = await db.Pois.Include(x => x.Translations).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         if (poi is null) return NotFound(new { code = "POI_NOT_FOUND", message = "Không tìm thấy POI." });
         if (await db.Pois.AnyAsync(x => x.Id != id && x.Slug == request.Slug.Trim().ToLowerInvariant(), cancellationToken)) return Conflict(new { code = "SLUG_CONFLICT", message = "Slug đã tồn tại." });
-        poi.Slug = request.Slug.Trim().ToLowerInvariant(); poi.Latitude = request.Latitude; poi.Longitude = request.Longitude; poi.ImageUrl = request.ImageUrl?.Trim(); poi.DisplayOrder = request.DisplayOrder; poi.IsActive = request.IsActive; poi.UpdatedAtUtc = DateTime.UtcNow;
+        poi.Slug = request.Slug.Trim().ToLowerInvariant(); poi.Latitude = request.Latitude; poi.Longitude = request.Longitude; poi.RadiusMeters = request.RadiusMeters; poi.ImageUrl = request.ImageUrl?.Trim(); poi.DisplayOrder = request.DisplayOrder; poi.IsActive = request.IsActive; poi.UpdatedAtUtc = DateTime.UtcNow;
         var vi = poi.Translations.FirstOrDefault(x => x.LanguageCode == "vi");
         if (vi is null) poi.Translations.Add(new PoiTranslation { LanguageCode = "vi", Name = request.NameVi.Trim(), Summary = request.SummaryVi.Trim() });
         else { vi.Name = request.NameVi.Trim(); vi.Summary = request.SummaryVi.Trim(); }
@@ -319,10 +319,12 @@ public sealed class AdminController(VivoiceDbContext db, AnalyticsService analyt
 
     private static bool IsHttpUrl(string? value) => ExternalHttpsUrlPolicy.IsValid(value);
     private static bool IsUsd(string? currency) => string.Equals(currency?.Trim(), "USD", StringComparison.OrdinalIgnoreCase);
-    private static string? NormalizeLanguage(string value) => value.Trim().ToLowerInvariant() is "vi" or "ko" or "ja" or "zh" or "th" ? value.Trim().ToLowerInvariant() : null;
+    private static string? NormalizeLanguage(string value) => value.Trim().ToLowerInvariant() is "vi" or "ko" or "ja" or "zh" or "en" ? value.Trim().ToLowerInvariant() : null;
 
     private ActionResult? ValidatePoi(PoiWriteRequest request)
     {
+        if (!PoiRadiusPolicy.IsValid(request.RadiusMeters))
+            return BadRequest(new { code = "INVALID_RADIUS", message = "Bán kính POI phải là số hữu hạn lớn hơn 0 mét." });
         if (string.IsNullOrWhiteSpace(request.Slug) || string.IsNullOrWhiteSpace(request.NameVi) || string.IsNullOrWhiteSpace(request.SummaryVi) || request.Latitude is < -90 or > 90 || request.Longitude is < -180 or > 180)
             return BadRequest(new { code = "VALIDATION_ERROR", message = "Kiểm tra slug, tên, mô tả và tọa độ POI." });
         if (!string.IsNullOrWhiteSpace(request.ImageUrl) && !ExternalHttpsUrlPolicy.IsValid(request.ImageUrl))
@@ -331,8 +333,8 @@ public sealed class AdminController(VivoiceDbContext db, AnalyticsService analyt
     }
 
     private static bool IsValidTopic(TopicWriteRequest request) => TopicCategoryPolicy.Normalize(request.Category) is not null && !string.IsNullOrWhiteSpace(request.TitleVi) && !string.IsNullOrWhiteSpace(request.ContentVi);
-    private static Poi BuildPoi(PoiWriteRequest request) => new() { Slug = request.Slug.Trim().ToLowerInvariant(), Latitude = request.Latitude, Longitude = request.Longitude, ImageUrl = request.ImageUrl?.Trim(), DisplayOrder = request.DisplayOrder, IsActive = request.IsActive, Translations = [new PoiTranslation { LanguageCode = "vi", Name = request.NameVi.Trim(), Summary = request.SummaryVi.Trim() }] };
-    private static object ToAdminPoi(Poi poi) { var vi = poi.Translations.FirstOrDefault(x => x.LanguageCode == "vi"); return new { poi.Id, poi.Slug, poi.Latitude, poi.Longitude, poi.ImageUrl, poi.DisplayOrder, poi.IsActive, NameVi = vi?.Name ?? string.Empty, SummaryVi = vi?.Summary ?? string.Empty }; }
+    private static Poi BuildPoi(PoiWriteRequest request) => new() { Slug = request.Slug.Trim().ToLowerInvariant(), Latitude = request.Latitude, Longitude = request.Longitude, RadiusMeters = request.RadiusMeters, ImageUrl = request.ImageUrl?.Trim(), DisplayOrder = request.DisplayOrder, IsActive = request.IsActive, Translations = [new PoiTranslation { LanguageCode = "vi", Name = request.NameVi.Trim(), Summary = request.SummaryVi.Trim() }] };
+    private static object ToAdminPoi(Poi poi) { var vi = poi.Translations.FirstOrDefault(x => x.LanguageCode == "vi"); return new { poi.Id, poi.Slug, poi.Latitude, poi.Longitude, poi.RadiusMeters, poi.ImageUrl, poi.DisplayOrder, poi.IsActive, NameVi = vi?.Name ?? string.Empty, SummaryVi = vi?.Summary ?? string.Empty }; }
     private static object ToAdminTopic(PoiTopic topic) { var vi = topic.Translations.FirstOrDefault(x => x.LanguageCode == "vi"); return new { topic.Id, topic.PoiId, topic.Category, topic.DisplayOrder, topic.IsActive, TitleVi = vi?.Title ?? string.Empty, ContentVi = vi?.Content ?? string.Empty }; }
 
     private async Task AuditAsync(string action, string entityType, string entityId, CancellationToken cancellationToken)
@@ -340,6 +342,11 @@ public sealed class AdminController(VivoiceDbContext db, AnalyticsService analyt
         var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (long.TryParse(id, out var adminId)) { db.AuditLogs.Add(new AuditLog { AdminUserId = adminId, Action = action, EntityType = entityType, EntityId = entityId }); await db.SaveChangesAsync(cancellationToken); }
     }
+}
+
+public static class PoiRadiusPolicy
+{
+    public static bool IsValid(double radiusMeters) => double.IsFinite(radiusMeters) && radiusMeters > 0d;
 }
 
 public static class ExternalHttpsUrlPolicy

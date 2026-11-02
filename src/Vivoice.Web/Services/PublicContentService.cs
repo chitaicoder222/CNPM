@@ -20,7 +20,7 @@ public sealed class PublicContentService(VivoiceDbContext db)
         return pois.Select(poi =>
         {
             var translation = FindPoiTranslation(poi.Translations, languageCode);
-            return new PoiCardDto(poi.Id, poi.Slug, translation.Value.Name, translation.Value.Summary, poi.Latitude, poi.Longitude, poi.ImageUrl, poi.DisplayOrder, translation.FallbackUsed);
+            return new PoiCardDto(poi.Id, poi.Slug, translation.Value.Name, translation.Value.Summary, poi.Latitude, poi.Longitude, poi.RadiusMeters, poi.ImageUrl, poi.DisplayOrder, translation.FallbackUsed);
         }).ToList();
     }
 
