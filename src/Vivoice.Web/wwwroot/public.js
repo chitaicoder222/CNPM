@@ -81,10 +81,6 @@
     ? createSessionIssuer(() => api("/api/public/sessions", { method: "POST" }))
     : () => api("/api/public/sessions", { method: "POST" }).then(() => true).catch(() => false);
   let retryAction = null;
-  let availableVoices = [];
-  let speechToken = 0;
-  let activeSpeech = null;
-  let speechStartTimer = null;
   let languageChangeToken = 0;
   const gpsGuide = window.VivoiceGpsGuide.createGuide({
     geolocation: navigator.geolocation,
@@ -93,6 +89,12 @@
     cancel: () => stopSpeech(),
     onStatus: (key, poi) => { gpsStatusKey = key; gpsStatusPoi = poi; renderGpsStatus(); },
     onPosition: position => { currentPosition = position; renderPosition(); }
+  });
+  const narrationController = window.VivoiceNarrationController.create({
+    elements, text, ttsLanguage, window, setSpeechStatus, setSpeechControls,
+    getSelectedNarration: () => selectedNarration,
+    setNarrationCanReplay: value => { narrationCanReplay = value; },
+    isReplayAllowed: () => gpsGuide.isWithinRange(selectedPoiId)
   });
 
   function readStoredLanguage() { try { return localStorage.getItem("vivoice_language"); } catch { return "vi"; } }
@@ -318,53 +320,11 @@
       elements.narrationNotice.textContent = ""; setSpeechStatus("", "error"); elements.narrationText.textContent = publicError(error); setRetry(() => selectTopic(topicId));
     } finally { if (isCurrentRequest("narration", request)) setBusy(elements.narrationPanel, false); }
   }
-  function refreshVoices() { try { availableVoices = typeof window.speechSynthesis?.getVoices === "function" ? window.speechSynthesis.getVoices() : []; } catch { availableVoices = []; } }
-  function initializeVoices() {
-    if (!("speechSynthesis" in window)) return;
-    refreshVoices();
-    if (typeof window.speechSynthesis.addEventListener === "function") window.speechSynthesis.addEventListener("voiceschanged", refreshVoices);
-    else window.speechSynthesis.onvoiceschanged = refreshVoices;
-  }
   function stopSpeech(announce = false) {
-    const wasActive = Boolean(activeSpeech) || Boolean(window.speechSynthesis?.speaking) || Boolean(window.speechSynthesis?.pending);
-    const interrupted = activeSpeech;
-    speechToken += 1; activeSpeech = null; window.clearTimeout(speechStartTimer); speechStartTimer = null;
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-    interrupted?.resolve(false);
-    setSpeechControls({ canReplay: Boolean(selectedNarration) });
-    if (announce && wasActive) setSpeechStatus("speechStopped", "stopped"); else if (!announce) setSpeechStatus();
+    return narrationController.stop(announce);
   }
   function speakNarration(narration) {
-    stopSpeech();
-    if (!String(narration?.content || "").trim()) { setSpeechStatus("speechEmpty", "error"); return Promise.resolve(false); }
-    if (!("speechSynthesis" in window) || typeof window.SpeechSynthesisUtterance !== "function" || !ttsLanguage) {
-      setSpeechControls({ canReplay: true }); setSpeechStatus("speechUnavailable", "error"); return Promise.resolve(false);
-    }
-    return new Promise(resolve => {
-      const token = ++speechToken;
-      const isCurrentSpeech = () => token === speechToken;
-      const finish = (success, status, state) => {
-        if (!isCurrentSpeech()) return;
-        speechToken += 1; window.clearTimeout(speechStartTimer); speechStartTimer = null; activeSpeech = null;
-        if (!success) window.speechSynthesis.cancel();
-        setSpeechControls({ canReplay: true }); setSpeechStatus(status, state); resolve(success);
-      };
-      try {
-        const utterance = new SpeechSynthesisUtterance(narration.content);
-        utterance.lang = ttsLanguage.resolveSpeechLocale(narration.languageCode);
-        const matchingVoice = ttsLanguage.chooseVoice(availableVoices, utterance.lang);
-        if (matchingVoice) utterance.voice = matchingVoice;
-        activeSpeech = { token, utterance, resolve };
-        utterance.onstart = () => { if (!isCurrentSpeech()) return; window.clearTimeout(speechStartTimer); speechStartTimer = null; setSpeechControls({ canPause: true, canStop: true }); setSpeechStatus("speaking", "speaking"); };
-        utterance.onpause = () => { if (!isCurrentSpeech()) return; elements.pause.textContent = "▶"; setSpeechStatus("speechPaused", "paused"); };
-        utterance.onresume = () => { if (!isCurrentSpeech()) return; elements.pause.textContent = text("pause"); setSpeechStatus("speechResumed", "resumed"); };
-        utterance.onend = () => finish(true, "speechEnded", "ended");
-        utterance.onerror = () => finish(false, "speechUnavailable", "error");
-        elements.pause.textContent = text("pause"); setSpeechControls({ canPause: true, canStop: true, canReplay: true }); setSpeechStatus("speechPreparing", "preparing");
-        speechStartTimer = window.setTimeout(() => finish(false, "speechUnavailable", "error"), 3000);
-        window.speechSynthesis.speak(utterance);
-      } catch { finish(false, "speechUnavailable", "error"); }
-    });
+    return narrationController.speak(narration);
   }
   async function playGpsPoi(poi, signal) {
     const language = currentLanguage;
@@ -418,7 +378,7 @@
     currentLanguage = normalizeUiLanguage(elements.language.value); persistLanguage(currentLanguage); stopSpeech(); selectedNarration = null; renderStaticLanguage(); clearNarration();
     try { await Promise.all([loadPois(true), renderAds("LEFT", elements.leftAds), renderAds("RIGHT", elements.rightAds)]); if (changeToken === languageChangeToken) gpsGuide.refresh(); } catch (error) { if (!isAbort(error)) setStatus(publicError(error), "error"); }
   });
-  elements.pause.addEventListener("click", () => { if (!activeSpeech || !("speechSynthesis" in window)) return; if (window.speechSynthesis.paused) window.speechSynthesis.resume(); else window.speechSynthesis.pause(); });
+  elements.pause.addEventListener("click", () => { if (!narrationController.isActive() || !("speechSynthesis" in window)) return; if (window.speechSynthesis.paused) window.speechSynthesis.resume(); else window.speechSynthesis.pause(); });
   elements.stop.addEventListener("click", () => { stopSpeech(true); gpsGuide.interrupt(); setSpeechStatus("speechStopped", "stopped"); });
   elements.replay.addEventListener("click", () => { if (selectedNarration && narrationCanReplay && gpsGuide.isWithinRange(selectedPoiId)) { gpsGuide.interrupt(); void speakNarration(selectedNarration); } });
   elements.retry.addEventListener("click", () => { const action = retryAction; clearRetry(); if (action) void action(); });
@@ -432,5 +392,5 @@
   window.addEventListener("pagehide", () => { gpsGuide.stop(); mapResizeObserver?.disconnect(); window.clearTimeout(mapResizeTimer); if (heartbeatTimer != null) window.clearInterval(heartbeatTimer); });
 
   Object.entries(locales).forEach(([code, locale]) => { const option = document.createElement("option"); option.value = code; option.textContent = locale.name; elements.language.append(option); });
-  renderStaticLanguage(); initializeVoices(); createMap(); void Promise.all([loadPois(false), renderAds("LEFT", elements.leftAds), renderAds("RIGHT", elements.rightAds)]); startHeartbeat();
+  renderStaticLanguage(); narrationController.initializeVoices(); createMap(); void Promise.all([loadPois(false), renderAds("LEFT", elements.leftAds), renderAds("RIGHT", elements.rightAds)]); startHeartbeat();
 })();
