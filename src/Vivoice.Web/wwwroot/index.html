@@ -17,7 +17,7 @@
   <aside id="leftAds" class="ad-rail left" aria-label="Quảng cáo bên trái"></aside>
   <aside id="rightAds" class="ad-rail right" aria-label="Quảng cáo bên phải"></aside>
   <main id="top">
-    <section class="hero"><div class="shell hero-grid"><div><span class="eyebrow" data-i18n="eyebrow">Hành trình Việt Nam đa ngôn ngữ</span><h1 data-i18n="heroTitle">Đến một địa điểm. Lắng nghe câu chuyện nơi đó.</h1><p data-i18n="heroCopy">Khám phá văn hóa, hương vị và những hành trình đặc sắc của Việt Nam theo ngôn ngữ của bạn.</p></div><div class="hero-card"><span aria-hidden="true">✦</span><strong data-i18n="heroCard">Bật định vị. Đi vào vòng bán kính. Tự động nghe thuyết minh.</strong></div></div></section>
+    <section class="hero"><div class="shell hero-grid"><div class="hero-copy"><span class="eyebrow" data-i18n="eyebrow">Hành trình Việt Nam đa ngôn ngữ</span><h1 data-i18n="heroTitle">Đến một địa điểm. Lắng nghe câu chuyện nơi đó.</h1><p data-i18n="heroCopy">Khám phá văn hóa, hương vị và những hành trình đặc sắc của Việt Nam theo ngôn ngữ của bạn.</p><a class="hero-cta" href="#exploreTitle" data-i18n="heroAction">Khám phá địa điểm</a></div><div class="hero-artwork" aria-hidden="true"><div class="hero-card"><span aria-hidden="true">✦</span><strong data-i18n="heroCard">Bật định vị. Đi vào vòng bán kính. Tự động nghe thuyết minh.</strong></div></div></div></section>
     <section class="shell section" aria-labelledby="exploreTitle"><div class="section-heading"><div><span class="section-kicker" data-i18n="mapKicker">Khám phá</span><h2 id="exploreTitle" data-i18n="mapTitle">Khám phá Thành phố Hồ Chí Minh</h2></div><p id="publicStatus" class="status-line" role="status" aria-live="polite"></p></div><div class="gps-controls"><div><strong data-i18n="gpsTitle">Tự động thuyết minh theo vị trí</strong><p id="gpsHelp" class="status-line" data-i18n="gpsHelp">Cho phép định vị để tự nghe khi đi vào vòng bán kính của địa điểm. Tọa độ chỉ được xử lý trên thiết bị khi bạn mở trang.</p><p id="gpsStatus" class="status-line" role="status" aria-live="polite"></p></div><button id="toggleGps" class="button" type="button" aria-pressed="false" aria-describedby="gpsHelp">Bật định vị</button></div><div class="map-card">
       <div class="user-range-controls">
         <label class="user-radius-label" for="userRadiusSelect"><span data-i18n="userRadiusLabel">Bán kính quanh bạn</span><select id="userRadiusSelect" aria-describedby="userRadiusHelp"><option value="50">50 m</option><option value="100" selected>100 m</option><option value="200">200 m</option><option value="500">500 m</option></select></label>
@@ -25,6 +25,7 @@
         <span id="positionAccuracy" class="status-line">Chưa có vị trí</span>
       </div>
       <div id="map" aria-label="Bản đồ các điểm thuyết minh VIVOICE"></div>
+      <div id="mapNotice" class="map-notice hidden" role="status" aria-live="polite"></div>
       <div class="map-legend">
         <span><i class="legend-circle legend-user" aria-hidden="true"></i><span data-i18n="userRadiusLegend">Phạm vi quanh bạn</span></span>
         <span><i class="legend-circle legend-poi" aria-hidden="true"></i><span data-i18n="poiRadiusLegend">Vùng thuyết minh POI</span></span>

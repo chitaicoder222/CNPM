@@ -20,7 +20,8 @@ function fixture() {
   };
   const response = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
   const context = {
-    document: { getElementById: byId, createElement: () => byId(`generated-${elements.size}`), createDocumentFragment: () => byId(`fragment-${elements.size}`) },
+    document: { getElementById: byId, createElement: () => byId(`generated-${elements.size}`), createDocumentFragment: () => byId(`fragment-${elements.size}`), addEventListener() {} },
+    addEventListener() {}, setInterval() {}, clearInterval() {},
     fetch: async (url, options = {}) => {
       if (options.method === "POST" || options.method === "PATCH") {
         writes.push({ url, ...options }); const data = JSON.parse(options.body);
@@ -32,7 +33,9 @@ function fixture() {
       return response([]);
     }
   };
+  context.window = context;
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.resolve(__dirname, "../../../src/Vivoice.Web/wwwroot/admin-dashboard-refresh.js"), "utf8"), context);
   vm.runInContext(fs.readFileSync(path.resolve(__dirname, "../../../src/Vivoice.Web/wwwroot/admin.js"), "utf8"), context);
   byId("poiSlug").value = "sample"; byId("poiOrder").value = "1"; byId("poiLatitude").value = "21"; byId("poiLongitude").value = "105";
   byId("poiName").value = "Địa điểm"; byId("poiSummary").value = "Mô tả";

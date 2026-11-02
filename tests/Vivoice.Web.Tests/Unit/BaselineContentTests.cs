@@ -67,4 +67,16 @@ public sealed class BaselineContentTests
         Assert.Contains(VivoiceBaselineContent.Pois, poi => poi.Slug == "lotte-mart-quan-7");
         Assert.DoesNotContain(VivoiceBaselineContent.Pois, poi => new[] { "ha-noi", "ho-chi-minh-city", "da-nang", "hue", "hoi-an", "nha-trang" }.Contains(poi.Slug));
     }
+
+    [Fact]
+    public void VietnameseNarrationsAreDistinctForEveryCurrentTopic()
+    {
+        var VietnameseNarrations = VivoiceBaselineContent.Pois
+            .SelectMany(poi => poi.Topics)
+            .Select(topic => topic.Translations["vi"].Content)
+            .ToList();
+
+        Assert.Equal(33, VietnameseNarrations.Count);
+        Assert.Equal(33, VietnameseNarrations.Distinct(StringComparer.Ordinal).Count());
+    }
 }

@@ -18,7 +18,20 @@
     <section id="adminView" class="hidden">
       <header class="admin-head"><div><span class="section-kicker">VIVOICE Admin</span><h1>Điều hành nội dung và số liệu thật</h1></div><div><a class="button secondary" href="index.html">Trang public</a> <button id="logoutButton" class="button secondary" type="button">Đăng xuất</button></div></header>
 
-      <section class="admin-card"><div class="section-heading"><div><span class="section-kicker">Dashboard</span><h2>Truy cập, thiết bị và doanh thu</h2></div><form id="dashboardFilter" class="form-grid"><div class="field"><label for="fromDate">Từ ngày</label><input id="fromDate" type="date"></div><div class="field"><label for="toDate">Đến ngày</label><input id="toDate" type="date"></div><div class="field"><label>&nbsp;</label><button class="button" type="submit">Lọc dữ liệu</button></div></form></div><div id="metrics" class="metric-grid" aria-live="polite"></div><p id="deviceStatus" class="status-line"></p><div class="admin-grid"><div><h3>Truy cập theo ngày</h3><div id="visitTrend"></div></div><div><h3>Quảng cáo</h3><p id="adMetrics" class="status-line">Chưa có dữ liệu.</p><h3>Thiết bị đang hoạt động</h3><div id="activeDevices"></div></div></div></section>
+      <section class="admin-card dashboard-card">
+        <div class="section-heading dashboard-heading">
+          <div><span class="section-kicker">Dashboard</span><h2>Truy cập, thiết bị và doanh thu</h2></div>
+          <div class="dashboard-actions">
+            <button id="dashboardRefreshButton" class="button secondary" type="button">Cập nhật ngay</button>
+            <p id="dashboardRefreshStatus" class="status-line" role="status" aria-live="polite">Chưa cập nhật.</p>
+          </div>
+        </div>
+        <form id="dashboardFilter" class="form-grid dashboard-filter"><div class="field"><label for="fromDate">Từ ngày</label><input id="fromDate" type="date"></div><div class="field"><label for="toDate">Đến ngày</label><input id="toDate" type="date"></div><div class="field"><label>&nbsp;</label><button class="button" type="submit">Lọc dữ liệu</button></div></form>
+        <div id="metrics" class="metric-grid" aria-live="polite"></div>
+        <details class="metric-definitions"><summary>Cách VIVOICE tính các số liệu</summary><ul><li><strong>Lượt hợp lệ:</strong> heartbeat đầu tiên được chấp nhận của một phiên khách public, không phải lần mở dashboard hay health check.</li><li><strong>Khách duy nhất:</strong> số định danh phiên public khác nhau có lượt hợp lệ trong khoảng lọc; không phải danh tính thật.</li><li><strong>Thiết bị đang hoạt động:</strong> phiên public có heartbeat trong cửa sổ hoạt động cấu hình; Admin và bot bị loại trừ.</li><li><strong>Ước tính traffic:</strong> tổng mức giá gắn với lượt hợp lệ, không phải doanh thu đã thu.</li><li><strong>Quảng cáo:</strong> impression/click chỉ từ sự kiện public hợp lệ; việc tự cập nhật dashboard không tạo sự kiện.</li></ul></details>
+        <p id="deviceStatus" class="status-line"></p>
+        <div class="admin-grid"><div><h3>Truy cập theo ngày</h3><div id="visitTrend"></div></div><div><h3>Quảng cáo</h3><p id="adMetrics" class="status-line">Chưa có dữ liệu.</p><h3>Thiết bị đang hoạt động</h3><div id="activeDevices"></div></div></div>
+      </section>
 
       <div class="admin-grid">
         <section class="admin-card"><div class="section-heading"><div><span class="section-kicker">POI</span><h2>Địa điểm</h2></div><button id="newPoiButton" class="button secondary" type="button">Thêm POI</button></div><div class="field"><label for="poiSearch">Tìm POI</label><input id="poiSearch" placeholder="Tên hoặc slug"></div><div id="poiList"></div></section>
@@ -49,6 +62,7 @@
       <section class="admin-card"><div class="section-heading"><div><span class="section-kicker">Revenue rate history</span><h2>Giá cho lượt truy cập hợp lệ</h2></div></div><p class="status-line">Dashboard tổng hợp USD. Mức mới chỉ được thêm sau mức gần nhất; lịch sử cũ không bị ghi đè.</p><div class="admin-grid"><form id="rateForm"><div class="form-grid"><div class="field"><label for="rateAmount">USD / lượt hợp lệ</label><input id="rateAmount" type="number" min="0.0001" step="0.0001" required></div><div class="field"><label for="rateEffectiveFrom">Hiệu lực từ</label><input id="rateEffectiveFrom" type="datetime-local" required></div></div><button class="button" type="submit">Thêm mức giá</button><p id="rateStatus" class="status-line"></p></form><div id="rateList"></div></div></section>
     </section>
   </main>
+  <script src="admin-dashboard-refresh.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>

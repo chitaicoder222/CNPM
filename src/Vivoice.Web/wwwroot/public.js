@@ -24,6 +24,14 @@
     en: {"userRadiusLabel":"Radius around you","userRadiusLegend":"Area around you","poiRadiusLegend":"POI narration area","accuracyLegend":"GPS accuracy","accuracyValue":"GPS accuracy: ±{accuracy} m","positionWaiting":"Location not available yet","centerOnMe":"Back to my location","userRadiusHelp":"The green circle shows the distance around you. Narration starts when you enter a place's red circle."}
   };
   Object.entries(userRangeLocales).forEach(([language, messages]) => Object.assign(locales[language], messages));
+  const mapLocales = {
+    vi: { heroAction: "Khám phá địa điểm", mapRetry: "Thử lại bản đồ", mapTilesUnavailable: "Chưa tải được nền bản đồ. Các điểm và nội dung vẫn sẵn sàng." },
+    ko: { heroAction: "장소 둘러보기", mapRetry: "지도 다시 시도", mapTilesUnavailable: "지도 배경을 불러오지 못했습니다. 장소와 안내 내용은 계속 이용할 수 있습니다." },
+    ja: { heroAction: "場所を探す", mapRetry: "地図を再読み込み", mapTilesUnavailable: "背景地図を読み込めません。地点とガイドの内容は引き続き利用できます。" },
+    zh: { heroAction: "探索地点", mapRetry: "重新加载地图", mapTilesUnavailable: "暂时无法加载地图底图，地点和讲解内容仍可使用。" },
+    en: { heroAction: "Explore places", mapRetry: "Retry the map", mapTilesUnavailable: "The map background could not load. Places and stories are still available." }
+  };
+  Object.entries(mapLocales).forEach(([language, messages]) => Object.assign(locales[language], messages));
   const ariaLabels = {
     vi: { language: "Chọn ngôn ngữ", map: "Bản đồ các điểm thuyết minh VIVOICE", leftAds: "Quảng cáo bên trái", rightAds: "Quảng cáo bên phải" },
     ko: { language: "언어 선택", map: "VIVOICE 안내 장소 지도", leftAds: "왼쪽 광고", rightAds: "오른쪽 광고" },
@@ -53,9 +61,9 @@
   let accuracyCircle;
   const radiusCircles = new Map();
   const ttsLanguage = window.VivoiceTtsLanguage;
-  const savedLanguage = localStorage.getItem("vivoice_language");
+  const savedLanguage = readStoredLanguage();
   let currentLanguage = normalizeUiLanguage(savedLanguage === "th" ? "en" : savedLanguage);
-  if (savedLanguage === "th") localStorage.setItem("vivoice_language", currentLanguage);
+  if (savedLanguage === "th") persistLanguage(currentLanguage);
   let selectedPoiId = null;
   let selectedTopicId = null;
   let selectedNarration = null;
@@ -63,6 +71,10 @@
   let pois = [];
   let topics = [];
   let map;
+  let mapTileLayer;
+  let mapResizeObserver;
+  let mapResizeTimer;
+  let heartbeatTimer;
   let markers = new Map();
   const createSessionIssuer = window.VivoiceVisitorSession?.createSessionIssuer;
   const issueVisitorSession = typeof createSessionIssuer === "function"
@@ -83,6 +95,8 @@
     onPosition: position => { currentPosition = position; renderPosition(); }
   });
 
+  function readStoredLanguage() { try { return localStorage.getItem("vivoice_language"); } catch { return "vi"; } }
+  function persistLanguage(languageCode) { try { localStorage.setItem("vivoice_language", languageCode); } catch { /* Keep the language for this page when storage is unavailable. */ } }
   function normalizeUiLanguage(languageCode) {
     const normalized = typeof languageCode === "string" ? languageCode.trim().replaceAll("_", "-").toLowerCase().split("-")[0] : "";
     return locales[normalized] ? normalized : "vi";
@@ -182,18 +196,40 @@
     else positionMarker.setLatLng(location);
     if (!hasFocusedPosition) { focusUserPosition(); hasFocusedPosition = true; }
   }
+  function showMapNotice(key, retryable = false) {
+    const host = document.getElementById("mapNotice"); host.replaceChildren();
+    const message = document.createElement("span"); message.textContent = text(key); host.append(message);
+    if (retryable) { const retry = document.createElement("button"); retry.type = "button"; retry.className = "map-retry"; retry.textContent = text("mapRetry"); retry.addEventListener("click", () => { mapTileLayer?.redraw(); scheduleMapResize(); }); host.append(retry); }
+    host.classList.remove("hidden");
+  }
+  function scheduleMapResize() {
+    window.clearTimeout(mapResizeTimer);
+    mapResizeTimer = window.setTimeout(() => map?.invalidateSize({ pan: false, animate: false }), 80);
+  }
   function createMap() {
     if (!window.L) {
+      showMapNotice("mapUnavailable");
       setStatus(text("mapUnavailable"), "error");
       setRetry(() => window.location.reload());
       return false;
     }
     if (map) return true;
     map = L.map("map", { scrollWheelZoom: false }).setView([16.3, 107.4], 5.5);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap contributors" })
-      .on("tileerror", () => { setStatus(text("mapUnavailable"), "error"); setRetry(() => window.location.reload()); })
+    mapTileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap contributors" })
+      .on("tileerror", () => showMapNotice("mapTilesUnavailable", true))
+      .on("load", () => document.getElementById("mapNotice").classList.add("hidden"))
       .addTo(map);
+    if (typeof window.ResizeObserver === "function") { mapResizeObserver = new window.ResizeObserver(scheduleMapResize); mapResizeObserver.observe(elements.map); }
+    window.addEventListener("resize", scheduleMapResize, { passive: true });
+    scheduleMapResize();
     return true;
+  }
+  function createPoiImage(poi) {
+    const visual = document.createElement("span"); visual.className = "poi-visual";
+    const fallback = () => { visual.replaceChildren(); visual.classList.add("is-fallback"); visual.textContent = poi.name; };
+    if (!poi.imageUrl) { fallback(); return visual; }
+    const image = document.createElement("img"); image.src = poi.imageUrl; image.alt = poi.name; image.loading = "lazy"; image.decoding = "async";
+    image.addEventListener("error", fallback, { once: true }); visual.append(image); return visual;
   }
   function renderPois() {
     elements.poiGrid.replaceChildren();
@@ -202,10 +238,11 @@
     markers = new Map();
     pois.forEach((poi, index) => {
       const card = document.createElement("button"); card.type = "button"; card.className = "poi-card"; card.setAttribute("aria-pressed", String(poi.id === selectedPoiId));
+      const body = document.createElement("span"); body.className = "poi-card-body";
       const number = document.createElement("span"); number.className = "number"; number.textContent = String(index + 1).padStart(2, "0");
       const heading = document.createElement("h3"); heading.textContent = poi.name;
       const summary = document.createElement("p"); summary.textContent = poi.summary;
-      card.append(number, heading, summary); card.addEventListener("click", () => { gpsGuide.interrupt(); void selectPoi(poi.id, true); }); elements.poiGrid.append(card);
+      body.append(number, heading, summary); card.append(createPoiImage(poi), body); card.addEventListener("click", () => { gpsGuide.interrupt(); void selectPoi(poi.id, true); }); elements.poiGrid.append(card);
       if (map) {
         const marker = L.marker([poi.latitude, poi.longitude]).addTo(map).bindTooltip(poi.name);
         marker.on("click", () => { gpsGuide.interrupt(); void selectPoi(poi.id, true); }); markers.set(poi.id, marker);
@@ -216,11 +253,13 @@
   function renderTopics() {
     elements.topicGrid.replaceChildren();
     if (!topics.length) { const empty = document.createElement("p"); empty.className = "status-line"; empty.textContent = text("noTopics"); elements.topicGrid.append(empty); return; }
-    topics.forEach(topic => {
+    topics.forEach((topic, index) => {
       const button = document.createElement("button"); button.type = "button"; button.className = "topic-card"; button.setAttribute("aria-pressed", String(topic.id === selectedTopicId));
+      const order = document.createElement("span"); order.className = "topic-order"; order.textContent = String(index + 1).padStart(2, "0");
+      const copy = document.createElement("span"); copy.className = "topic-card-copy";
       const category = document.createElement("small"); category.textContent = text("categories")[topic.category] || topic.category;
       const title = document.createElement("strong"); title.textContent = topic.title;
-      button.append(category, title); button.addEventListener("click", () => { gpsGuide.interrupt(); void selectTopic(topic.id); }); elements.topicGrid.append(button);
+      copy.append(category, title); button.append(order, copy); button.addEventListener("click", () => { gpsGuide.interrupt(); void selectTopic(topic.id); }); elements.topicGrid.append(button);
     });
   }
   async function loadPois(keepSelection = true) {
@@ -371,12 +410,12 @@
     return issueVisitorSession();
   }
   function recordAdEvent(advertisementId, eventType) { return ensureVisitorSession().then(issued => issued ? api(`/api/public/advertisements/${advertisementId}/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eventType }) }) : undefined).catch(() => undefined); }
-  function startHeartbeat() { const send = () => ensureVisitorSession().then(issued => issued ? api("/api/public/sessions/heartbeat", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }) : undefined).catch(() => undefined); send(); window.setInterval(send, 30000); }
+  function startHeartbeat() { const send = () => ensureVisitorSession().then(issued => issued ? api("/api/public/sessions/heartbeat", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }) : undefined).catch(() => undefined); send(); heartbeatTimer = window.setInterval(send, 30000); }
 
   elements.language.addEventListener("change", async () => {
     const changeToken = ++languageChangeToken;
     gpsGuide.interrupt();
-    currentLanguage = normalizeUiLanguage(elements.language.value); localStorage.setItem("vivoice_language", currentLanguage); stopSpeech(); selectedNarration = null; renderStaticLanguage(); clearNarration();
+    currentLanguage = normalizeUiLanguage(elements.language.value); persistLanguage(currentLanguage); stopSpeech(); selectedNarration = null; renderStaticLanguage(); clearNarration();
     try { await Promise.all([loadPois(true), renderAds("LEFT", elements.leftAds), renderAds("RIGHT", elements.rightAds)]); if (changeToken === languageChangeToken) gpsGuide.refresh(); } catch (error) { if (!isAbort(error)) setStatus(publicError(error), "error"); }
   });
   elements.pause.addEventListener("click", () => { if (!activeSpeech || !("speechSynthesis" in window)) return; if (window.speechSynthesis.paused) window.speechSynthesis.resume(); else window.speechSynthesis.pause(); });
@@ -390,7 +429,7 @@
     userRadiusMeters = radius; renderPosition(); focusUserPosition();
   });
   centerOnMe.addEventListener("click", () => focusUserPosition());
-  window.addEventListener("pagehide", () => gpsGuide.stop());
+  window.addEventListener("pagehide", () => { gpsGuide.stop(); mapResizeObserver?.disconnect(); window.clearTimeout(mapResizeTimer); if (heartbeatTimer != null) window.clearInterval(heartbeatTimer); });
 
   Object.entries(locales).forEach(([code, locale]) => { const option = document.createElement("option"); option.value = code; option.textContent = locale.name; elements.language.append(option); });
   renderStaticLanguage(); initializeVoices(); createMap(); void Promise.all([loadPois(false), renderAds("LEFT", elements.leftAds), renderAds("RIGHT", elements.rightAds)]); startHeartbeat();

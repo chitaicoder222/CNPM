@@ -40,6 +40,11 @@ public sealed class PublicController(PublicContentService content, AnalyticsServ
     [HttpPost("sessions")]
     public IActionResult IssueVisitorSession()
     {
+        if (!CanRecordAnonymousTelemetry())
+        {
+            return NoContent();
+        }
+
         Response.Cookies.Append(VisitorSessionCookieService.CookieName, visitorSessions.Issue(), new CookieOptions
         {
             HttpOnly = true,
@@ -55,6 +60,11 @@ public sealed class PublicController(PublicContentService content, AnalyticsServ
     [HttpPost("sessions/heartbeat")]
     public async Task<ActionResult<HeartbeatResponse>> Heartbeat(CancellationToken cancellationToken)
     {
+        if (!CanRecordAnonymousTelemetry())
+        {
+            return NoContent();
+        }
+
         if (!TryGetServerIssuedSessionId(out var sessionId)) return BadRequest(new { code = "SESSION_REQUIRED", message = "Phiên truy cập hợp lệ là bắt buộc." });
         var result = await analytics.RecordHeartbeatAsync(sessionId, Request.Headers.UserAgent.ToString(), cancellationToken);
         return result is null
@@ -66,8 +76,13 @@ public sealed class PublicController(PublicContentService content, AnalyticsServ
     [HttpPost("advertisements/{advertisementId:long}/events")]
     public async Task<IActionResult> RecordAdvertisementEvent(long advertisementId, AdvertisementEventRequest request, CancellationToken cancellationToken)
     {
+        if (!CanRecordAnonymousTelemetry())
+        {
+            return NoContent();
+        }
+
         if (request is null || string.IsNullOrWhiteSpace(request.EventType)) return BadRequest(new { code = "INVALID_AD_EVENT", message = "Sự kiện quảng cáo không hợp lệ." });
-        TryGetServerIssuedSessionId(out var sessionId);
+        if (!TryGetServerIssuedSessionId(out var sessionId)) return BadRequest(new { code = "SESSION_REQUIRED", message = "Phiên truy cập hợp lệ là bắt buộc." });
         var recorded = await analytics.RecordAdvertisementEventAsync(advertisementId, request.EventType, sessionId, cancellationToken);
         return recorded ? NoContent() : BadRequest(new { code = "INVALID_AD_EVENT", message = "Sự kiện quảng cáo không hợp lệ." });
     }
@@ -80,6 +95,9 @@ public sealed class PublicController(PublicContentService content, AnalyticsServ
 
     private bool TryGetServerIssuedSessionId(out string sessionId) =>
         visitorSessions.TryRead(Request.Cookies[VisitorSessionCookieService.CookieName], out sessionId);
+
+    private bool CanRecordAnonymousTelemetry() =>
+        VisitorTelemetryPolicy.ShouldRecordAnonymousTelemetry(User.Identity?.IsAuthenticated == true, Request.Headers.UserAgent.ToString());
 }
 
 public static class PublicRequestValidation

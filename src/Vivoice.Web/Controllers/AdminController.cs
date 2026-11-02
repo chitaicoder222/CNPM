@@ -19,22 +19,22 @@ namespace Vivoice.Web.Controllers;
 public sealed class AdminController(VivoiceDbContext db, AnalyticsService analytics) : ControllerBase
 {
     [HttpGet("dashboard")]
-    public Task<DashboardDto> Dashboard([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken cancellationToken)
+    public async Task<ActionResult<DashboardDto>> Dashboard([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken cancellationToken)
     {
         var end = to?.ToUniversalTime() ?? DateTime.UtcNow;
         var start = from?.ToUniversalTime() ?? end.AddDays(-6);
-        return analytics.GetDashboardAsync(start, end, cancellationToken);
+        if (!DashboardRangePolicy.IsValid(start, end))
+        {
+            return BadRequest(new { code = "INVALID_DATE_RANGE", message = "Thời điểm bắt đầu phải không muộn hơn thời điểm kết thúc." });
+        }
+
+        return Ok(await analytics.GetDashboardAsync(start, end, cancellationToken));
     }
 
     [HttpGet("devices/active")]
     public async Task<IActionResult> ActiveDevices(CancellationToken cancellationToken)
     {
-        var cutoff = DateTime.UtcNow.AddSeconds(-90);
-        var devices = await db.VisitorSessions.AsNoTracking().Where(x => x.LastSeenAtUtc >= cutoff)
-            .OrderByDescending(x => x.LastSeenAtUtc)
-            .Select(x => new { x.Id, x.DeviceType, x.BrowserFamily, x.OperatingSystem, x.FirstSeenAtUtc, x.LastSeenAtUtc })
-            .ToListAsync(cancellationToken);
-        return Ok(devices);
+        return Ok(await analytics.GetActiveDevicesAsync(cancellationToken));
     }
 
     [HttpGet("pois")]

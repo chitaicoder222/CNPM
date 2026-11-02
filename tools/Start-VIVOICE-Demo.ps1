@@ -5,7 +5,8 @@ param(
     [ValidateRange(1024, 65535)]
     [int]$Port = 5078,
     [switch]$NoTunnel,
-    [switch]$Stop
+    [switch]$Stop,
+    [switch]$OpenBrowser
 )
 
 Set-StrictMode -Version Latest
@@ -105,9 +106,23 @@ function Test-QuickTunnel {
     $home = Get-HttpStatus -Url "$TunnelUrl/" -TimeoutSeconds 10
     $pois = Get-HttpStatus -Url "$TunnelUrl/api/public/pois?lang=vi" -TimeoutSeconds 10
     $anonymousAdmin = Get-HttpStatus -Url "$TunnelUrl/api/admin/dashboard" -TimeoutSeconds 10
-    return $home -eq 200 -and $pois -eq 200 -and $anonymousAdmin -eq 401
+    return $home -eq 200 -and $pois -eq 200 -and $anonymousAdmin -eq 404
 }
 
+function Open-VerifiedTunnelUrl {
+    param([string]$TunnelUrl)
+    if (-not $OpenBrowser -or [string]::IsNullOrWhiteSpace($TunnelUrl)) { return }
+    try {
+        Start-Process -FilePath $TunnelUrl
+        Write-LauncherMessage "Opened the verified public demo URL in the default browser."
+    }
+    catch {
+        Write-LauncherMessage "The tunnel is ready, but the browser could not be opened automatically. Copy this URL: $TunnelUrl"
+    }
+}
+
+$previousPublicOnly = $null
+$publicOnlyConfigured = $false
 try {
     if (-not (Test-Path -LiteralPath $projectPath -PathType Leaf)) { throw "VIVOICE project file was not found at the expected repository path." }
     if ($Stop) {
@@ -119,6 +134,9 @@ try {
         exit 0
     }
 
+    $previousPublicOnly = $env:VivoiceDemo__PublicOnly
+    $env:VivoiceDemo__PublicOnly = "true"
+    $publicOnlyConfigured = $true
     $env:ASPNETCORE_ENVIRONMENT = "Development"
     $env:DOTNET_ENVIRONMENT = "Development"
     $state = Get-DemoState
@@ -154,6 +172,7 @@ try {
     if ($state -and $state.TunnelProcessId -and $state.Origin -eq $origin -and (Test-OwnedProcess -ProcessId ([int]$state.TunnelProcessId) -NamePattern "^cloudflared(\.exe)?$" -RequiredCommandText $origin) -and (Test-QuickTunnel -TunnelUrl $state.TunnelUrl)) {
         Save-DemoState ([ordered]@{ Version = 1; Origin = $origin; WebProcessId = $webProcessId; TunnelProcessId = [int]$state.TunnelProcessId; TunnelUrl = $state.TunnelUrl; UpdatedAtUtc = [DateTime]::UtcNow.ToString("o") })
         Write-LauncherMessage "Reusing verified launcher-owned Quick Tunnel: $($state.TunnelUrl)"
+        Open-VerifiedTunnelUrl -TunnelUrl $state.TunnelUrl
         exit 0
     }
 
@@ -183,13 +202,24 @@ try {
     }
     if (-not (Test-QuickTunnel -TunnelUrl $tunnelUrl)) {
         Stop-OwnedProcess -ProcessId $tunnelProcess.Id -NamePattern "^cloudflared(\.exe)?$" -RequiredCommandText $origin -Label "unverified Cloudflare tunnel"
-        throw "Quick Tunnel probes did not return public 200/200 and anonymous Admin 401. The URL is not reported as successful."
+        throw "Quick Tunnel probes did not return public 200/200 and blocked Admin 404. The URL is not reported as successful."
     }
 
     Save-DemoState ([ordered]@{ Version = 1; Origin = $origin; WebProcessId = $webProcessId; TunnelProcessId = $tunnelProcess.Id; TunnelUrl = $tunnelUrl; UpdatedAtUtc = [DateTime]::UtcNow.ToString("o") })
     Write-LauncherMessage "Demo is ready: $tunnelUrl"
+    Open-VerifiedTunnelUrl -TunnelUrl $tunnelUrl
 }
 catch {
     Write-Error "VIVOICE demo was not started: $($_.Exception.Message)"
     exit 1
+}
+finally {
+    if ($publicOnlyConfigured) {
+        if ($null -eq $previousPublicOnly) {
+            Remove-Item -Path Env:VivoiceDemo__PublicOnly -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:VivoiceDemo__PublicOnly = $previousPublicOnly
+        }
+    }
 }

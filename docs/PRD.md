@@ -92,7 +92,7 @@ Khả năng phát âm thanh và giọng có sẵn phụ thuộc trình duyệt, 
 
 ### 5 Quy tắc nghiệp vụ khác
 
-Một lượt truy cập hợp lệ được ghi ở heartbeat đầu của một phiên do máy chủ cấp, sau bước phân loại bot đơn giản. Heartbeat gửi mỗi 30 giây; thời gian hoạt động mặc định là 90 giây. Phiên là đại diện cho phiên trình duyệt, không chứng minh một con người hay thiết bị vật lý duy nhất.
+Một lượt truy cập hợp lệ được ghi ở heartbeat đầu của một phiên do máy chủ cấp, sau bước phân loại bot đơn giản. Heartbeat gửi mỗi 30 giây; cửa sổ hoạt động mặc định là 300 giây, giới hạn cấu hình 30–900 giây và được API trả bằng `activeWindowSeconds`. Chỉ phiên có lượt hợp lệ được tính hoạt động; tài khoản đã đăng nhập và bot không cấp/ghi telemetry khách ẩn danh. Phiên là đại diện cho phiên trình duyệt, không chứng minh một con người hay thiết bị vật lý duy nhất. Dashboard tự làm mới mỗi 10 giây khi tab hiển thị, có nút cập nhật và bộ lọc ngày; cập nhật số liệu không ghi đè biểu mẫu quản trị đang sửa.
 
 Đơn giá khởi tạo là 0,10 USD cho mỗi lượt hợp lệ. Lượt cũ giữ đơn giá đã áp dụng; mức mới có thời điểm hiệu lực mới. Dashboard tách ước tính từ truy cập, giá trị hợp đồng, khoản đã nhận và khoản còn phải thu. Ước tính truy cập phục vụ demo, không phải hệ thống kế toán chống gian lận.
 
@@ -458,6 +458,15 @@ Kịch bản nghiệm thu thủ công:
 
 Chế độ tunnel cần `cloudflared` trong PATH và database đã sẵn sàng. Launcher không khởi tạo Docker/database. Quick Tunnel có URL tạm; không coi URL trong báo cáo cũ là đang sống. Không chuyển tiếp SQL qua tunnel.
 
+Thư mục `start-VIVOICE-Demo/` có hai BAT Start/Stop cho thành viên nhóm. BAT Start gọi launcher với `-OpenBrowser`, mở URL HTTPS mới sau kiểm tra `/ready`, trang gốc, danh sách POI và biên quản trị. Launcher đặt `VivoiceDemo__PublicOnly=true`: host public trả 404 cho `/admin.html`, `/admin.js` và `/api/admin`. Khi cần quản trị cục bộ, mở host riêng với cấu hình SQL đã hướng dẫn ở trên:
+
+```powershell
+$env:VivoiceDemo__PublicOnly = 'false'
+dotnet run --project src/Vivoice.Web --no-launch-profile -- --urls http://127.0.0.1:5088
+```
+
+Truy cập `http://127.0.0.1:5088/admin.html` trên máy quản trị; host này dùng chung database nhưng không nối vào tunnel công khai. Phải khởi tạo/migrate database riêng trước khi dùng các BAT. Launcher không lưu mật khẩu và chỉ dừng đúng tiến trình của nó. URL Quick Tunnel đổi mỗi lần tạo tunnel mới; dùng URL vừa được launcher xác nhận.
+
 <a id="4-kiem-thu-va-truy-vet"></a>
 
 ### 4 Kiểm thử và truy vết
@@ -567,6 +576,16 @@ Trên bản khôi phục, 10 trường hợp xóa bản ghi cha có tham chiếu
 
 Đối chiếu SHA-256 từng bảng xác nhận dữ liệu cả 14 bảng ứng dụng giữ nguyên qua migration, gồm 11 POI, bản dịch, chủ đề, tài khoản và lịch sử quản trị. Thử xóa LOTTE MART Quận 7 trong transaction trên demo cũng bị SQL 547 chặn và transaction được rollback. Database có đủ 4 migration; web đã khởi động lại, `/ready` trả 200 và API tiếng Anh trả đủ 11 POI, không fallback. Quy tắc thao tác và quan hệ chi tiết nằm tại mục 3.4 phần database.
 
+
+#### 4.10 Đồng bộ các cập nhật GitHub ngày 02/11/2026
+
+Đã ghép với `origin/main` tại `6f3eb3b` (PR #30): giữ giao diện hero/ảnh và bố cục mới, dashboard tự cập nhật, cửa sổ hoạt động 300 giây, lọc telemetry bot/admin, chế độ demo public-only và BAT mở demo một lần nhấp. Cơ chế phát hiện hành vẫn là GPS đi vào bán kính POI; chọn thủ công chỉ xem trước văn bản. Module chuỗi tự đọc cũ còn trong repository dưới dạng tiện ích độc lập, không được trang public nạp để kích hoạt bằng cú nhấp. Catalog hiện hành vẫn là 11 POI tại TP.HCM với năm ngôn ngữ Việt/Hàn/Nhật/Trung/Anh. Kiểm tra nội dung xác nhận đủ 33 bài tiếng Việt khác nhau; yêu cầu độ dài của bộ sáu thành phố cũ được giữ trong lịch sử.
+
+Hero dùng asset cục bộ `assets/hero/vietnam-cultural-hero.jpg` đã có từ bản redesign. Thẻ POI dùng `imageUrl` từ API nếu được cấu hình; khi chưa có ảnh hoặc tải lỗi, hiển thị tên địa điểm trong khung dự phòng. Sáu ảnh thành phố cũ vẫn được giữ trong thư mục assets để bảo toàn tài nguyên, không gán ảnh thành phố khác cho 11 POI mới. Map giữ cơ chế cập nhật kích thước khi khung thay đổi, thông báo lỗi nền bản đồ và nút thử lại.
+
+Toàn bộ 40 tài liệu từ bản GitHub trước khi ghép được lưu nguyên vẹn trong [archive redesign](archive/2026-11-02-remote-redesign.zip), gồm mô tả chức năng, danh mục asset, nguồn nội dung và kiểm chứng bộ sáu thành phố cũ. Nội dung đang áp dụng được cập nhật vào PRD này; tài liệu lịch sử trong archive không thay thế yêu cầu hiện hành. README trong thư mục BAT chỉ dẫn về PRD.
+
+Sau khi ghép, 74 kiểm thử C# và 39 kiểm thử Node qua. Bộ frontend kiểm tra đồng thời biểu mẫu bán kính với module dashboard mới và giữ các ca GPS/tiếng Anh. Chưa có bằng chứng kiểm thử trực quan trên trình duyệt hoặc GPS/âm thanh thực địa cho lần đồng bộ này.
 
 <a id="5-bang-chung-lich-su-va-gioi-han"></a>
 

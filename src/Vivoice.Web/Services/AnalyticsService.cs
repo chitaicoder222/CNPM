@@ -21,6 +21,11 @@ public sealed class AnalyticsService(VivoiceDbContext db, IConfiguration configu
         var nowUtc = DateTime.UtcNow;
         var sessionHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sessionId)));
         var device = DeviceClassifier.Describe(userAgent);
+        if (device.IsLikelyBot)
+        {
+            return new HeartbeatResponse(false, device.DeviceType, ActiveSeconds());
+        }
+
         var session = await db.VisitorSessions.FirstOrDefaultAsync(x => x.SessionHash == sessionHash, cancellationToken);
         var visitRecorded = false;
         if (session is null)
@@ -39,7 +44,7 @@ public sealed class AnalyticsService(VivoiceDbContext db, IConfiguration configu
                 .Where(x => x.EffectiveFromUtc <= nowUtc && (x.EffectiveToUtc == null || x.EffectiveToUtc > nowUtc))
                 .OrderByDescending(x => x.EffectiveFromUtc)
                 .FirstOrDefaultAsync(cancellationToken);
-            db.Visits.Add(new Visit { VisitorSession = session, VisitRevenueRate = rate, AppliedRateAmount = device.IsLikelyBot ? 0m : rate?.Amount ?? 0m, Currency = rate?.Currency ?? "USD", OccurredAtUtc = nowUtc, IsValid = !device.IsLikelyBot });
+            db.Visits.Add(new Visit { VisitorSession = session, VisitRevenueRate = rate, AppliedRateAmount = rate?.Amount ?? 0m, Currency = rate?.Currency ?? "USD", OccurredAtUtc = nowUtc, IsValid = true });
             visitRecorded = true;
         }
         else
@@ -53,13 +58,13 @@ public sealed class AnalyticsService(VivoiceDbContext db, IConfiguration configu
 
     public async Task<bool> RecordAdvertisementEventAsync(long advertisementId, string eventType, string? sessionId, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(eventType)) return false;
+        if (string.IsNullOrWhiteSpace(eventType) || !Guid.TryParse(sessionId, out _)) return false;
         var normalizedEvent = eventType.Trim().ToLowerInvariant();
         if (normalizedEvent is not ("impression" or "click")) return false;
         var nowUtc = DateTime.UtcNow;
         var advertisementIsActive = await db.Advertisements.AnyAsync(ad => ad.Id == advertisementId && ad.IsActive && ad.StartsAtUtc <= nowUtc && (ad.EndsAtUtc == null || ad.EndsAtUtc > nowUtc), cancellationToken);
         if (!advertisementIsActive) return false;
-        var sessionHash = Guid.TryParse(sessionId, out _) ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sessionId!))) : null;
+        var sessionHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sessionId!)));
         db.AdvertisementEvents.Add(new AdvertisementEvent { AdvertisementId = advertisementId, EventType = normalizedEvent, SessionHash = sessionHash, OccurredAtUtc = nowUtc });
         await db.SaveChangesAsync(cancellationToken);
         return true;
@@ -77,8 +82,9 @@ public sealed class AnalyticsService(VivoiceDbContext db, IConfiguration configu
             .OrderBy(item => item.Date)
             .ToListAsync(cancellationToken))
             .Select(item => new DailyVisitsDto(DateOnly.FromDateTime(item.Date), item.Visits)).ToList();
-        var activeByType = await db.VisitorSessions.AsNoTracking()
-            .Where(x => x.LastSeenAtUtc >= activeAfterUtc)
+        var activeSessionsQuery = db.VisitorSessions.AsNoTracking()
+            .Where(x => x.LastSeenAtUtc >= activeAfterUtc && x.Visits.Any(visit => visit.IsValid));
+        var activeByType = await activeSessionsQuery
             .GroupBy(x => x.DeviceType)
             .Select(group => new { DeviceType = group.Key, Count = group.Count() })
             .ToDictionaryAsync(x => x.DeviceType, x => x.Count, cancellationToken);
@@ -93,10 +99,27 @@ public sealed class AnalyticsService(VivoiceDbContext db, IConfiguration configu
         var impressions = await adEvents.CountAsync(x => x.EventType == "impression", cancellationToken);
         var clicks = await adEvents.CountAsync(x => x.EventType == "click", cancellationToken);
         var activeSessions = activeByType.Values.Sum();
-        return new DashboardDto(fromUtc, toUtc, validVisits, uniqueVisitors, activeSessions, activeSessions, activeByType, visitsByDate, trafficEstimate, contracted, received, Math.Max(0m, contracted - receivedAgainstAgreements), activeSponsors, impressions, clicks, "USD");
+        return new DashboardDto(fromUtc, toUtc, validVisits, uniqueVisitors, activeSessions, activeSessions, activeByType, visitsByDate, trafficEstimate, contracted, received, Math.Max(0m, contracted - receivedAgainstAgreements), activeSponsors, impressions, clicks, "USD", ActiveSeconds());
     }
 
-    private int ActiveSeconds() => Math.Clamp(configuration.GetValue<int?>("SessionTracking:ActiveSeconds") ?? 90, 30, 900);
+    public async Task<IReadOnlyList<ActiveDeviceDto>> GetActiveDevicesAsync(CancellationToken cancellationToken)
+    {
+        var cutoff = DateTime.UtcNow.AddSeconds(-ActiveSeconds());
+        return await db.VisitorSessions.AsNoTracking()
+            .Where(x => x.LastSeenAtUtc >= cutoff && x.Visits.Any(visit => visit.IsValid))
+            .OrderByDescending(x => x.LastSeenAtUtc)
+            .Select(x => new ActiveDeviceDto(x.Id, x.DeviceType, x.BrowserFamily, x.OperatingSystem, x.FirstSeenAtUtc, x.LastSeenAtUtc))
+            .ToListAsync(cancellationToken);
+    }
+
+    private int ActiveSeconds() => AnalyticsWindowPolicy.Normalize(configuration.GetValue<int?>("SessionTracking:ActiveSeconds"));
+}
+
+public static class AnalyticsWindowPolicy
+{
+    public const int DefaultActiveSeconds = 300;
+
+    public static int Normalize(int? configuredSeconds) => Math.Clamp(configuredSeconds ?? DefaultActiveSeconds, 30, 900);
 }
 
 public static class DeviceClassifier
