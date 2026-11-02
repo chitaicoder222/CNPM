@@ -13,6 +13,7 @@ public sealed class BaselineContentTests
         Assert.Equal(11, VivoiceBaselineContent.Pois.Count);
         Assert.All(VivoiceBaselineContent.Pois, poi =>
         {
+            Assert.NotEmpty(poi.SourceUrls);
             Assert.Equal(VivoiceBaselineContent.SupportedLanguages.Count, poi.Translations.Count);
             Assert.Equal(VivoiceBaselineContent.SupportedLanguages.Order(), poi.Translations.Keys.Order());
         });

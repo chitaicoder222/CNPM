@@ -11,16 +11,26 @@ public sealed record BaselinePoiDefinition(string Slug, decimal Latitude, decima
 
 public static class VivoiceBaselineContent
 {
-    public static IReadOnlyList<string> SupportedLanguages { get; } = ["vi", "ko", "ja", "zh", "en"];
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    public static IReadOnlyList<string> SupportedLanguages { get; } =
+        Array.AsReadOnly(["vi", "ko", "ja", "zh", "en"]);
+
     public static IReadOnlyList<BaselinePoiDefinition> Pois { get; } = LoadPois();
 
     private static IReadOnlyList<BaselinePoiDefinition> LoadPois()
     {
-        using var stream = typeof(VivoiceBaselineContent).Assembly.GetManifestResourceStream("Vivoice.Web.Data.BaselineContent.json")
+        var assembly = typeof(VivoiceBaselineContent).Assembly;
+        using var stream = assembly.GetManifestResourceStream("Vivoice.Web.Data.BaselineContent.json")
             ?? throw new InvalidOperationException("The VIVOICE baseline content resource is missing.");
-        var pois = JsonSerializer.Deserialize<BaselinePoiDefinition[]>(stream, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        var pois = JsonSerializer.Deserialize<BaselinePoiDefinition[]>(stream, SerializerOptions);
         if (pois is null || pois.Length == 0)
             throw new InvalidOperationException("The VIVOICE baseline content is empty.");
+
         return Array.AsReadOnly(pois);
     }
 }

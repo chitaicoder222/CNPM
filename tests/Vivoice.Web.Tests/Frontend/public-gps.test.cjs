@@ -73,7 +73,7 @@ function fixture(t, { delayNarration = false, delayPois = false, storedLanguage 
   };
   context.window = context;
   vm.createContext(context);
-  for (const file of ["tts-language.js", "visitor-session.js", "gps-guide.js", "public.js"]) vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context, { filename: file });
+  for (const file of ["tts-language.js", "visitor-session.js", "gps-guide.js", "public-narration.main.js", "public.js"]) vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context, { filename: file });
   t.after(() => windowEvents.pagehide?.());
   return { byId, spoken, requests, circles, cleared, fittedBounds, circleLayers, pointLayers, savedPreferences, i18nElements, documentElement: context.document.documentElement,
     fix(north = 0, accuracy = 5) { success({ coords: { latitude: 21 + north / 111194.9266, longitude: 105, accuracy }, timestamp: Date.now() }); },
