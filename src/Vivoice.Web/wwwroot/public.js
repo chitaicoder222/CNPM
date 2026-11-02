@@ -217,7 +217,7 @@
     }
     if (map) return true;
     map = L.map("map", { scrollWheelZoom: false }).setView([16.3, 107.4], 5.5);
-    mapTileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap contributors" })
+    mapTileLayer = L.tileLayer("https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap contributors" })
       .on("tileerror", () => showMapNotice("mapTilesUnavailable", true))
       .on("load", () => document.getElementById("mapNotice").classList.add("hidden"))
       .addTo(map);

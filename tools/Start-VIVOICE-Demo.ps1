@@ -1,5 +1,5 @@
 # Purpose: Starts a loopback-only VIVOICE demo and, after readiness succeeds, creates or reuses a launcher-owned Cloudflare Quick Tunnel.
-# Responsibility: Uses private Development configuration without exposing it, never manages Docker/database resources, and only stops processes recorded as launcher-owned.
+# Responsibility: Loads local-only database configuration, initializes the schema/content idempotently, and only stops processes recorded as launcher-owned.
 [CmdletBinding()]
 param(
     [ValidateRange(1024, 65535)]
@@ -55,6 +55,44 @@ function Test-LocalReady {
 function Test-LoopbackPortInUse {
     try { return [bool](Test-NetConnection -ComputerName "127.0.0.1" -Port $Port -InformationLevel Quiet -WarningAction SilentlyContinue) }
     catch { return $false }
+}
+
+function Import-LocalDatabaseConfiguration {
+    $envPath = Join-Path $repositoryRoot ".env"
+    if (Test-Path -LiteralPath $envPath -PathType Leaf) {
+        foreach ($line in Get-Content -LiteralPath $envPath -Encoding utf8) {
+            if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$') {
+                $name = $Matches[1]
+                $value = $Matches[2].Trim().Trim('"').Trim("'")
+                if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name)) -and -not [string]::IsNullOrWhiteSpace($value)) {
+                    [Environment]::SetEnvironmentVariable($name, $value, "Process")
+                }
+            }
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($env:MSSQL_SA_PASSWORD)) {
+        throw "MSSQL_SA_PASSWORD is missing. Copy .env.example to .env and set a local SQL Server password."
+    }
+    if ([string]::IsNullOrWhiteSpace($env:ConnectionStrings__Vivoice)) {
+        $env:ConnectionStrings__Vivoice = "Server=127.0.0.1,14333;Database=Vivoice;User Id=sa;Password=$($env:MSSQL_SA_PASSWORD);TrustServerCertificate=True;MultipleActiveResultSets=True"
+    }
+}
+
+function Initialize-LocalDatabase {
+    if ($null -eq (Get-Command "docker" -ErrorAction SilentlyContinue)) {
+        throw "Docker was not found on PATH. Install Docker Desktop before starting VIVOICE."
+    }
+    & docker compose -f (Join-Path $repositoryRoot "docker-compose.yml") up -d sqlserver
+    if ($LASTEXITCODE -ne 0) { throw "Docker could not start the local SQL Server container." }
+    $health = ""
+    for ($attempt = 1; $attempt -le 60; $attempt++) {
+        $health = (& docker inspect --format '{{.State.Health.Status}}' vivoice-sqlserver-dev 2>$null).Trim()
+        if ($health -eq "healthy") { break }
+        Start-Sleep -Seconds 1
+    }
+    if ($health -ne "healthy") { throw "The local SQL Server container did not become healthy within 60 seconds." }
+    & dotnet run --project $projectRelativePath --no-launch-profile -- --initialize-database
+    if ($LASTEXITCODE -ne 0) { throw "VIVOICE database initialization failed. Check the local SQL Server container and .env password." }
 }
 
 function Get-ProcessCommandLine {
@@ -133,6 +171,9 @@ try {
         if (Test-Path -LiteralPath $statePath -PathType Leaf) { Remove-Item -LiteralPath $statePath -Force }
         exit 0
     }
+
+    Import-LocalDatabaseConfiguration
+    Initialize-LocalDatabase
 
     $previousPublicOnly = $env:VivoiceDemo__PublicOnly
     $env:VivoiceDemo__PublicOnly = "true"
