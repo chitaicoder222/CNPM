@@ -7,7 +7,6 @@ BEGIN
     );
 END;
 GO
-
 BEGIN TRANSACTION;
 CREATE TABLE [AdminUsers] (
     [Id] bigint NOT NULL IDENTITY,
@@ -207,52 +206,6 @@ CREATE INDEX [IX_AdvertisementEvents_EventType_OccurredAtUtc] ON [AdvertisementE
 
 INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
 VALUES (N'20261026101427_AddOperationsManagement', N'9.0.11');
-
-ALTER TABLE [Pois] ADD [RadiusMeters] float NOT NULL DEFAULT 100.0E0;
-
-ALTER TABLE [Pois] ADD CONSTRAINT [CK_Pois_RadiusMeters_Positive] CHECK ([RadiusMeters] > 0);
-
-INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
-VALUES (N'20261031053239_AddPoiGeofenceRadius', N'9.0.11');
-
-ALTER TABLE [AdvertisementEvents] DROP CONSTRAINT [FK_AdvertisementEvents_Advertisements_AdvertisementId];
-
-ALTER TABLE [Advertisements] DROP CONSTRAINT [FK_Advertisements_Sponsors_SponsorId];
-
-ALTER TABLE [AuditLogs] DROP CONSTRAINT [FK_AuditLogs_AdminUsers_AdminUserId];
-
-ALTER TABLE [PoiTopics] DROP CONSTRAINT [FK_PoiTopics_Pois_PoiId];
-
-ALTER TABLE [PoiTranslations] DROP CONSTRAINT [FK_PoiTranslations_Pois_PoiId];
-
-ALTER TABLE [SponsorshipAgreements] DROP CONSTRAINT [FK_SponsorshipAgreements_Sponsors_SponsorId];
-
-ALTER TABLE [SponsorshipPayments] DROP CONSTRAINT [FK_SponsorshipPayments_SponsorshipAgreements_SponsorshipAgreementId];
-
-ALTER TABLE [TopicTranslations] DROP CONSTRAINT [FK_TopicTranslations_PoiTopics_PoiTopicId];
-
-ALTER TABLE [Visits] DROP CONSTRAINT [FK_Visits_VisitorSessions_VisitorSessionId];
-
-ALTER TABLE [AdvertisementEvents] ADD CONSTRAINT [FK_AdvertisementEvents_Advertisements_AdvertisementId] FOREIGN KEY ([AdvertisementId]) REFERENCES [Advertisements] ([Id]);
-
-ALTER TABLE [Advertisements] ADD CONSTRAINT [FK_Advertisements_Sponsors_SponsorId] FOREIGN KEY ([SponsorId]) REFERENCES [Sponsors] ([Id]);
-
-ALTER TABLE [AuditLogs] ADD CONSTRAINT [FK_AuditLogs_AdminUsers_AdminUserId] FOREIGN KEY ([AdminUserId]) REFERENCES [AdminUsers] ([Id]);
-
-ALTER TABLE [PoiTopics] ADD CONSTRAINT [FK_PoiTopics_Pois_PoiId] FOREIGN KEY ([PoiId]) REFERENCES [Pois] ([Id]);
-
-ALTER TABLE [PoiTranslations] ADD CONSTRAINT [FK_PoiTranslations_Pois_PoiId] FOREIGN KEY ([PoiId]) REFERENCES [Pois] ([Id]);
-
-ALTER TABLE [SponsorshipAgreements] ADD CONSTRAINT [FK_SponsorshipAgreements_Sponsors_SponsorId] FOREIGN KEY ([SponsorId]) REFERENCES [Sponsors] ([Id]);
-
-ALTER TABLE [SponsorshipPayments] ADD CONSTRAINT [FK_SponsorshipPayments_SponsorshipAgreements_SponsorshipAgreementId] FOREIGN KEY ([SponsorshipAgreementId]) REFERENCES [SponsorshipAgreements] ([Id]);
-
-ALTER TABLE [TopicTranslations] ADD CONSTRAINT [FK_TopicTranslations_PoiTopics_PoiTopicId] FOREIGN KEY ([PoiTopicId]) REFERENCES [PoiTopics] ([Id]);
-
-ALTER TABLE [Visits] ADD CONSTRAINT [FK_Visits_VisitorSessions_VisitorSessionId] FOREIGN KEY ([VisitorSessionId]) REFERENCES [VisitorSessions] ([Id]);
-
-INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
-VALUES (N'20261102042637_RestrictReferencedDeletes', N'9.0.11');
 
 COMMIT;
 GO

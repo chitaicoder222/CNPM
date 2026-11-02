@@ -62,7 +62,6 @@ public static class DatabaseSeeder
         Slug = definition.Slug,
         Latitude = definition.Latitude,
         Longitude = definition.Longitude,
-        RadiusMeters = definition.RadiusMeters,
         DisplayOrder = definition.DisplayOrder,
         Translations = definition.Translations.Select(pair => new PoiTranslation
         {

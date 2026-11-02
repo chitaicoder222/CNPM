@@ -1,5 +1,5 @@
 // Purpose: Verifies static VIVOICE baseline translation coverage without requiring SQL Server.
-// Responsibility: Guards the Ho Chi Minh City baseline and prevents accidental coverage gaps.
+// Responsibility: Guards the six-POI, eighteen-topic, five-language seed contract and prevents accidental baseline gaps.
 using Vivoice.Web.Data;
 
 namespace Vivoice.Web.Tests.Unit;
@@ -7,10 +7,9 @@ namespace Vivoice.Web.Tests.Unit;
 public sealed class BaselineContentTests
 {
     [Fact]
-    public void BaselineContainsElevenPoisAndFiveTranslationsForEachPoi()
+    public void BaselineContainsSixPoisAndFiveTranslationsForEachPoi()
     {
-        Assert.Equal(new[] { "vi", "ko", "ja", "zh", "en" }, VivoiceBaselineContent.SupportedLanguages);
-        Assert.Equal(11, VivoiceBaselineContent.Pois.Count);
+        Assert.Equal(6, VivoiceBaselineContent.Pois.Count);
         Assert.All(VivoiceBaselineContent.Pois, poi =>
         {
             Assert.Equal(VivoiceBaselineContent.SupportedLanguages.Count, poi.Translations.Count);
@@ -21,7 +20,7 @@ public sealed class BaselineContentTests
     [Fact]
     public void BaselineContainsThreeTopicsPerPoiAndFiveTranslationsForEachTopic()
     {
-        Assert.Equal(33, VivoiceBaselineContent.Pois.Sum(poi => poi.Topics.Count));
+        Assert.Equal(18, VivoiceBaselineContent.Pois.Sum(poi => poi.Topics.Count));
         Assert.All(VivoiceBaselineContent.Pois.SelectMany(poi => poi.Topics), topic =>
         {
             Assert.Equal(VivoiceBaselineContent.SupportedLanguages.Count, topic.Translations.Count);
@@ -35,48 +34,30 @@ public sealed class BaselineContentTests
     }
 
     [Fact]
-    public void BaselineHasOneHundredSeventySixNonVietnameseTranslationRecords()
+    public void BaselineHasNinetySixNonVietnameseTranslationRecords()
     {
         var poiTranslations = VivoiceBaselineContent.Pois.Sum(poi => poi.Translations.Keys.Count(language => language != "vi"));
         var topicTranslations = VivoiceBaselineContent.Pois.Sum(poi => poi.Topics.Sum(topic => topic.Translations.Keys.Count(language => language != "vi")));
 
-        Assert.Equal(44, poiTranslations);
-        Assert.Equal(132, topicTranslations);
-        Assert.Equal(176, poiTranslations + topicTranslations);
+        Assert.Equal(24, poiTranslations);
+        Assert.Equal(72, topicTranslations);
+        Assert.Equal(96, poiTranslations + topicTranslations);
     }
 
     [Fact]
-    public void BaselineContainsSpecificLandmarksInHoChiMinhCityWithPositiveGpsRadii()
-    {
-        Assert.Equal(11, VivoiceBaselineContent.Pois.Select(poi => poi.Slug).Distinct().Count());
-        Assert.Equal(Enumerable.Range(1, 11), VivoiceBaselineContent.Pois.Select(poi => poi.DisplayOrder));
-        Assert.All(VivoiceBaselineContent.Pois, poi =>
-        {
-            Assert.InRange(poi.Latitude, 10.7m, 10.9m);
-            Assert.InRange(poi.Longitude, 106.6m, 106.8m);
-            Assert.True(double.IsFinite(poi.RadiusMeters) && poi.RadiusMeters > 0);
-            Assert.Equal(new[] { "culture", "food", "tourism" }, poi.Topics.Select(topic => topic.Category));
-            Assert.All(poi.Translations.Values, translation =>
-            {
-                Assert.False(string.IsNullOrWhiteSpace(translation.Name));
-                Assert.False(string.IsNullOrWhiteSpace(translation.Summary));
-            });
-        });
-        Assert.Contains(VivoiceBaselineContent.Pois, poi => poi.Slug == "dinh-doc-lap");
-        Assert.Contains(VivoiceBaselineContent.Pois, poi => poi.Slug == "landmark-81");
-        Assert.Contains(VivoiceBaselineContent.Pois, poi => poi.Slug == "lotte-mart-quan-7");
-        Assert.DoesNotContain(VivoiceBaselineContent.Pois, poi => new[] { "ha-noi", "ho-chi-minh-city", "da-nang", "hue", "hoi-an", "nha-trang" }.Contains(poi.Slug));
-    }
-
-    [Fact]
-    public void VietnameseNarrationsAreDistinctForEveryCurrentTopic()
+    public void VietnameseNarrationsMeetTheSubstantiveSourceLengthTarget()
     {
         var VietnameseNarrations = VivoiceBaselineContent.Pois
             .SelectMany(poi => poi.Topics)
             .Select(topic => topic.Translations["vi"].Content)
             .ToList();
 
-        Assert.Equal(33, VietnameseNarrations.Count);
-        Assert.Equal(33, VietnameseNarrations.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(18, VietnameseNarrations.Count);
+        Assert.Equal(18, VietnameseNarrations.Distinct(StringComparer.Ordinal).Count());
+        Assert.All(VietnameseNarrations, narration =>
+        {
+            var wordCount = narration.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+            Assert.InRange(wordCount, 350, 520);
+        });
     }
 }

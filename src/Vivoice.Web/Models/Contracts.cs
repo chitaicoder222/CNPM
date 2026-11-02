@@ -2,14 +2,14 @@
 // Responsibility: Prevents database entities and internal fields from being returned directly by API endpoints.
 namespace Vivoice.Web.Models;
 
-public sealed record PoiCardDto(long Id, string Slug, string Name, string Summary, decimal Latitude, decimal Longitude, double RadiusMeters, string? ImageUrl, int DisplayOrder, bool FallbackUsed);
+public sealed record PoiCardDto(long Id, string Slug, string Name, string Summary, decimal Latitude, decimal Longitude, string? ImageUrl, int DisplayOrder, bool FallbackUsed);
 public sealed record TopicDto(long Id, string Category, string Title, int DisplayOrder, bool FallbackUsed);
 public sealed record NarrationDto(long TopicId, string Category, string Title, string Content, string LanguageCode, bool FallbackUsed);
 public sealed record AdvertisementDto(long Id, string Name, string ImageUrl, string TargetUrl, string Placement);
 public sealed record AdvertisementEventRequest(string EventType, string? SessionId);
 public sealed record HeartbeatResponse(bool VisitRecorded, string DeviceType, int ActiveForSeconds);
 public sealed record AdminLoginRequest(string DisplayName, string Phone, string Password);
-public sealed record PoiWriteRequest(string Slug, decimal Latitude, decimal Longitude, double RadiusMeters, string? ImageUrl, int DisplayOrder, bool IsActive, string NameVi, string SummaryVi);
+public sealed record PoiWriteRequest(string Slug, decimal Latitude, decimal Longitude, string? ImageUrl, int DisplayOrder, bool IsActive, string NameVi, string SummaryVi);
 public sealed record TopicWriteRequest(string Category, int DisplayOrder, bool IsActive, string TitleVi, string ContentVi);
 public sealed record PoiTranslationWriteRequest(string Name, string Summary);
 public sealed record TopicTranslationWriteRequest(string Title, string Content, bool IsPublished);

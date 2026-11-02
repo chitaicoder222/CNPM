@@ -4,7 +4,6 @@
 using System.Net;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
@@ -124,7 +123,7 @@ app.Use(async (context, next) =>
         context.Response.Headers["X-Content-Type-Options"] = "nosniff";
         context.Response.Headers["X-Frame-Options"] = "DENY";
         context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-        context.Response.Headers["Permissions-Policy"] = "camera=(), geolocation=(self), microphone=()";
+        context.Response.Headers["Permissions-Policy"] = "camera=(), geolocation=(), microphone=()";
         context.Response.Headers["Cross-Origin-Opener-Policy"] = "same-origin";
         context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; base-uri 'self'; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; img-src 'self' data: https:; object-src 'none'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com";
         if (context.Request.IsHttps)
@@ -138,17 +137,6 @@ app.Use(async (context, next) =>
 });
 app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
 {
-    if (context.Features.Get<IExceptionHandlerFeature>()?.Error is DbUpdateException
-        { InnerException: Microsoft.Data.SqlClient.SqlException { Number: 547 } })
-    {
-        context.Response.StatusCode = StatusCodes.Status409Conflict;
-        await context.Response.WriteAsJsonAsync(new
-        {
-            code = "DATA_INTEGRITY_CONFLICT",
-            message = "Không thể lưu hoặc xóa bản ghi vì vi phạm ràng buộc dữ liệu. Nếu bản ghi đang được tham chiếu, hãy ngừng kích hoạt hoặc xử lý dữ liệu liên quan trước."
-        });
-        return;
-    }
     context.Response.StatusCode = StatusCodes.Status500InternalServerError;
     await context.Response.WriteAsJsonAsync(new { code = "SERVER_ERROR", message = "Không thể xử lý yêu cầu lúc này." });
 }));

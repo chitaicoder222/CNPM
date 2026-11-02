@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Vivoice.Web.Data;
 
+// Purpose: Stores the current EF Core schema model used to calculate the next VIVOICE SQL migration.
+// Responsibility: Is generated metadata, not runtime business logic or a source of credentials.
 #nullable disable
 
 namespace Vivoice.Web.Data.Migrations
@@ -224,11 +226,6 @@ namespace Vivoice.Web.Data.Migrations
                         .HasPrecision(9, 6)
                         .HasColumnType("decimal(9,6)");
 
-                    b.Property<double>("RadiusMeters")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("float")
-                        .HasDefaultValue(100.0);
-
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(140)
@@ -242,10 +239,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("Pois", t =>
-                        {
-                            t.HasCheckConstraint("CK_Pois_RadiusMeters_Positive", "[RadiusMeters] > 0");
-                        });
+                    b.ToTable("Pois");
                 });
 
             modelBuilder.Entity("Vivoice.Web.Data.Entities.PoiTopic", b =>
@@ -550,7 +544,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.Sponsor", "Sponsor")
                         .WithMany()
                         .HasForeignKey("SponsorId")
-                        .OnDelete(DeleteBehavior.ClientNoAction);
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Sponsor");
                 });
@@ -560,7 +554,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.Advertisement", "Advertisement")
                         .WithMany("Events")
                         .HasForeignKey("AdvertisementId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Advertisement");
@@ -571,7 +565,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.AdminUser", "AdminUser")
                         .WithMany()
                         .HasForeignKey("AdminUserId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("AdminUser");
@@ -582,7 +576,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.Poi", "Poi")
                         .WithMany("Topics")
                         .HasForeignKey("PoiId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Poi");
@@ -593,7 +587,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.Poi", "Poi")
                         .WithMany("Translations")
                         .HasForeignKey("PoiId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Poi");
@@ -604,7 +598,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.Sponsor", "Sponsor")
                         .WithMany("Agreements")
                         .HasForeignKey("SponsorId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Sponsor");
@@ -615,7 +609,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.SponsorshipAgreement", "SponsorshipAgreement")
                         .WithMany("Payments")
                         .HasForeignKey("SponsorshipAgreementId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("SponsorshipAgreement");
@@ -626,7 +620,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.PoiTopic", "PoiTopic")
                         .WithMany("Translations")
                         .HasForeignKey("PoiTopicId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("PoiTopic");
@@ -636,13 +630,12 @@ namespace Vivoice.Web.Data.Migrations
                 {
                     b.HasOne("Vivoice.Web.Data.Entities.VisitRevenueRate", "VisitRevenueRate")
                         .WithMany()
-                        .HasForeignKey("VisitRevenueRateId")
-                        .OnDelete(DeleteBehavior.ClientNoAction);
+                        .HasForeignKey("VisitRevenueRateId");
 
                     b.HasOne("Vivoice.Web.Data.Entities.VisitorSession", "VisitorSession")
                         .WithMany("Visits")
                         .HasForeignKey("VisitorSessionId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("VisitRevenueRate");

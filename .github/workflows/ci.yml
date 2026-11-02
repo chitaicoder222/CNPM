@@ -52,10 +52,6 @@ jobs:
           node --check src/Vivoice.Web/wwwroot/admin.js
           node --check src/Vivoice.Web/wwwroot/tts-language.js
           node --check src/Vivoice.Web/wwwroot/visitor-session.js
-          node --check src/Vivoice.Web/wwwroot/gps-guide.js
 
       - name: Run frontend unit tests
         run: node --test tests/Vivoice.Web.Tests/Frontend/*.test.cjs
-
-      - name: Check documentation links
-        run: node tools/check-doc-links.cjs

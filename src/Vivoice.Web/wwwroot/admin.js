@@ -126,7 +126,6 @@
     await Promise.all([loadTopics(), loadPoiTranslations()]);
   }
   function fillPoi(poi) {
-    byId("poiRadius").value = poi.radiusMeters;
     byId("poiId").value = poi.id; byId("poiSlug").value = poi.slug; byId("poiOrder").value = poi.displayOrder; byId("poiLatitude").value = poi.latitude; byId("poiLongitude").value = poi.longitude; byId("poiImageUrl").value = poi.imageUrl || ""; byId("poiName").value = poi.nameVi; byId("poiSummary").value = poi.summaryVi; byId("poiActive").checked = poi.isActive;
   }
   function newPoi() {
@@ -135,14 +134,8 @@
   }
   async function savePoi(event) {
     event.preventDefault();
-    const radiusMeters = Number(byId("poiRadius").value);
-    if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
-      writeStatus("poiStatus", "Bán kính POI phải là số lớn hơn 0 mét.", "error");
-      byId("poiRadius").focus();
-      return;
-    }
     const id = byId("poiId").value;
-    const body = { slug: byId("poiSlug").value, displayOrder: Number(byId("poiOrder").value), latitude: Number(byId("poiLatitude").value), longitude: Number(byId("poiLongitude").value), radiusMeters, imageUrl: byId("poiImageUrl").value || null, nameVi: byId("poiName").value, summaryVi: byId("poiSummary").value, isActive: byId("poiActive").checked };
+    const body = { slug: byId("poiSlug").value, displayOrder: Number(byId("poiOrder").value), latitude: Number(byId("poiLatitude").value), longitude: Number(byId("poiLongitude").value), imageUrl: byId("poiImageUrl").value || null, nameVi: byId("poiName").value, summaryVi: byId("poiSummary").value, isActive: byId("poiActive").checked };
     try { const saved = await api(`/api/admin/pois${id ? `/${id}` : ""}`, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); await loadPois(); await selectPoi(state.pois.find(poi => poi.id === saved.id)); writeStatus("poiStatus", "Đã lưu POI.", "success"); } catch (error) { writeStatus("poiStatus", error.message, "error"); }
   }
 

@@ -36,8 +36,6 @@ public sealed class VivoiceDbContext(DbContextOptions<VivoiceDbContext> options)
 
         modelBuilder.Entity<Poi>(entity =>
         {
-            entity.ToTable(table => table.HasCheckConstraint("CK_Pois_RadiusMeters_Positive", "[RadiusMeters] > 0"));
-            entity.Property(x => x.RadiusMeters).HasDefaultValue(100d);
             entity.HasIndex(x => x.Slug).IsUnique();
             entity.Property(x => x.Slug).HasMaxLength(140);
             entity.Property(x => x.Latitude).HasPrecision(9, 6);
@@ -58,7 +56,7 @@ public sealed class VivoiceDbContext(DbContextOptions<VivoiceDbContext> options)
             entity.Property(x => x.TargetUrl).HasMaxLength(500);
             entity.Property(x => x.Placement).HasMaxLength(10);
             entity.HasIndex(x => new { x.Placement, x.IsActive, x.StartsAtUtc });
-            entity.HasOne(x => x.Sponsor).WithMany().HasForeignKey(x => x.SponsorId);
+            entity.HasOne(x => x.Sponsor).WithMany().HasForeignKey(x => x.SponsorId).OnDelete(DeleteBehavior.SetNull);
         });
         modelBuilder.Entity<AdvertisementEvent>(entity =>
         {
@@ -103,12 +101,5 @@ public sealed class VivoiceDbContext(DbContextOptions<VivoiceDbContext> options)
             entity.Property(x => x.SafeDetails).HasMaxLength(1000);
             entity.HasIndex(x => x.OccurredAtUtc);
         });
-
-        // Let SQL Server reject parent deletion while references remain. ClientNoAction also
-        // prevents EF from deleting loaded children or silently nulling optional foreign keys.
-        foreach (var foreignKey in modelBuilder.Model.GetEntityTypes().SelectMany(entity => entity.GetForeignKeys()))
-        {
-            foreignKey.DeleteBehavior = DeleteBehavior.ClientNoAction;
-        }
     }
 }
