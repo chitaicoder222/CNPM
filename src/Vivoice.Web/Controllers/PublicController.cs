@@ -74,7 +74,7 @@ public sealed class PublicController(PublicContentService content, AnalyticsServ
 
     private static string NormalizeLanguage(string? languageCode) => languageCode?.Trim().ToLowerInvariant() switch
     {
-        "vi" or "ko" or "ja" or "zh" or "th" => languageCode.Trim().ToLowerInvariant(),
+        "vi" or "ko" or "ja" or "zh" or "en" => languageCode.Trim().ToLowerInvariant(),
         _ => "vi"
     };
 
