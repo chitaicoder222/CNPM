@@ -13,20 +13,21 @@ test("Vietnamese fallback narration resolves to Vietnamese even when the UI lang
 
 test("all supported narration language codes resolve to their requested speech locales", () => {
   assert.deepEqual(
-    ["vi", "ko", "ja", "zh", "th"].map(ttsLanguage.resolveSpeechLocale),
-    ["vi-VN", "ko-KR", "ja-JP", "zh-CN", "th-TH"]
+    ["vi", "ko", "ja", "zh", "en"].map(ttsLanguage.resolveSpeechLocale),
+    ["vi-VN", "ko-KR", "ja-JP", "zh-CN", "en-US"]
   );
 });
 
 test("locale-style and underscore narration metadata normalize to the supported primary language", () => {
   assert.equal(ttsLanguage.resolveSpeechLocale("ko-KR"), "ko-KR");
   assert.equal(ttsLanguage.resolveSpeechLocale("zh_CN"), "zh-CN");
-  assert.equal(ttsLanguage.normalizeLanguageCode("th-TH"), "th");
+  assert.equal(ttsLanguage.normalizeLanguageCode("en_GB"), "en");
 });
 
 test("invalid or absent narration language metadata fails safely to Vietnamese", () => {
   assert.equal(ttsLanguage.resolveSpeechLocale(""), "vi-VN");
   assert.equal(ttsLanguage.resolveSpeechLocale("fr-FR"), "vi-VN");
+  assert.equal(ttsLanguage.resolveSpeechLocale("th-TH"), "vi-VN");
   assert.equal(ttsLanguage.resolveSpeechLocale(null), "vi-VN");
 });
 
@@ -42,6 +43,6 @@ test("matching voice accepts a same-language prefix when the exact locale is una
 });
 
 test("missing matching voice leaves browser TTS free to use its native fallback", () => {
-  assert.equal(ttsLanguage.chooseVoice([{ name: "Vietnamese", lang: "vi-VN" }], "th-TH"), null);
+  assert.equal(ttsLanguage.chooseVoice([{ name: "Vietnamese", lang: "vi-VN" }], "en-US"), null);
   assert.equal(ttsLanguage.chooseVoice([], "vi-VN"), null);
 });
