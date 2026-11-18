@@ -1,5 +1,5 @@
-// Purpose: Issues and validates opaque visitor-session cookies for anonymous analytics.
-// Responsibility: Ensures a heartbeat can use only a server-protected session identifier, never a client-invented UUID.
+// Purpose: Issues and resolves opaque anonymous browser-device cookies for public analytics.
+// Responsibility: Reuses one protected browser identity across reloads and never accepts a client-invented UUID.
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
 
@@ -12,6 +12,17 @@ public sealed class VisitorSessionCookieService(IDataProtectionProvider dataProt
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("Vivoice.Web.VisitorSession.v1");
 
     public string Issue() => protector.Protect(Guid.NewGuid().ToString("N"));
+
+    public VisitorSessionTicket ResolveOrIssue(string? protectedValue)
+    {
+        if (TryRead(protectedValue, out var existingSessionId))
+        {
+            return new VisitorSessionTicket(protectedValue!, existingSessionId, false);
+        }
+
+        var sessionId = Guid.NewGuid().ToString("N");
+        return new VisitorSessionTicket(protector.Protect(sessionId), sessionId, true);
+    }
 
     public bool TryRead(string? protectedValue, out string sessionId)
     {
@@ -38,3 +49,5 @@ public sealed class VisitorSessionCookieService(IDataProtectionProvider dataProt
         }
     }
 }
+
+public sealed record VisitorSessionTicket(string ProtectedValue, string SessionId, bool IsNew);

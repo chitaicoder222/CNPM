@@ -49,7 +49,10 @@ jobs:
       - name: Run frontend JavaScript syntax checks
         run: |
           node --check src/Vivoice.Web/wwwroot/public.js
+          node --check src/Vivoice.Web/wwwroot/map-tile-state.js
           node --check src/Vivoice.Web/wwwroot/admin.js
+          node --check src/Vivoice.Web/wwwroot/admin-dashboard-metrics.js
+          node --check src/Vivoice.Web/wwwroot/admin-date-input.js
           node --check src/Vivoice.Web/wwwroot/tts-language.js
           node --check src/Vivoice.Web/wwwroot/visitor-session.js
           node --check src/Vivoice.Web/wwwroot/gps-guide.js

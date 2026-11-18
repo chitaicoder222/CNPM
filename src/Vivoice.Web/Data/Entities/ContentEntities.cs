@@ -8,7 +8,8 @@ public sealed class Poi
     public string Slug { get; set; } = string.Empty;
     public decimal Latitude { get; set; }
     public decimal Longitude { get; set; }
-    public double RadiusMeters { get; set; } = 100d;
+    // The GPS distance in metres at which this POI may start its narration.
+    public int TriggerRadiusMeters { get; set; } = 100;
     public string? ImageUrl { get; set; }
     public int DisplayOrder { get; set; }
     public bool IsActive { get; set; } = true;

@@ -1,4 +1,4 @@
-<!-- Purpose: Defines the unit-test project for VIVOICE rules that do not require a live SQL Server instance. -->
+<!-- Purpose: Defines VIVOICE unit tests plus opt-in isolated SQL integration tests. -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
