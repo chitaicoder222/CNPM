@@ -1,5 +1,5 @@
-// Purpose: Exposes anonymous VIVOICE read APIs for map, narration, ads and privacy-minimal session heartbeats.
-// Responsibility: Delegates data access to services and never exposes admin or database-only fields.
+// Purpose: Exposes anonymous VIVOICE read APIs for map, narration, ads and privacy-minimal browser-device telemetry.
+// Responsibility: Reuses protected browser cookies across reloads, records page visits and never exposes admin or database-only fields.
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Vivoice.Web.Models;
@@ -38,21 +38,24 @@ public sealed class PublicController(PublicContentService content, AnalyticsServ
 
     [EnableRateLimiting("public-telemetry")]
     [HttpPost("sessions")]
-    public IActionResult IssueVisitorSession()
+    public async Task<IActionResult> RecordPageVisit(CancellationToken cancellationToken)
     {
         if (!CanRecordAnonymousTelemetry())
         {
             return NoContent();
         }
 
-        Response.Cookies.Append(VisitorSessionCookieService.CookieName, visitorSessions.Issue(), new CookieOptions
+        var ticket = visitorSessions.ResolveOrIssue(Request.Cookies[VisitorSessionCookieService.CookieName]);
+        Response.Cookies.Append(VisitorSessionCookieService.CookieName, ticket.ProtectedValue, new CookieOptions
         {
             HttpOnly = true,
             IsEssential = true,
             Path = "/",
             SameSite = SameSiteMode.Strict,
-            Secure = Request.IsHttps
+            Secure = Request.IsHttps,
+            MaxAge = TimeSpan.FromDays(30)
         });
+        await analytics.RecordPageVisitAsync(ticket.SessionId, Request.Headers.UserAgent.ToString(), cancellationToken);
         return NoContent();
     }
 
@@ -89,7 +92,7 @@ public sealed class PublicController(PublicContentService content, AnalyticsServ
 
     private static string NormalizeLanguage(string? languageCode) => languageCode?.Trim().ToLowerInvariant() switch
     {
-        "vi" or "ko" or "ja" or "zh" or "en" => languageCode.Trim().ToLowerInvariant(),
+        "vi" or "en" or "ko" or "ja" or "zh" => languageCode.Trim().ToLowerInvariant(),
         _ => "vi"
     };
 

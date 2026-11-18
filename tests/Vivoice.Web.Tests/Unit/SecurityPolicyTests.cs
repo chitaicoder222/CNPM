@@ -44,7 +44,7 @@ public sealed class SecurityPolicyTests
     [Fact]
     public void PaymentPolicy_RejectsCancelledAgreement()
     {
-        var result = SponsorshipPaymentPolicy.Validate("cancelled", 100m, 0m, 10m);
+        var result = SponsorshipPaymentPolicy.Validate("cancelled", "fixed", 100m, 0m, 10m);
 
         Assert.Equal(SponsorshipPaymentValidation.AgreementCancelled, result);
     }
@@ -52,7 +52,7 @@ public sealed class SecurityPolicyTests
     [Fact]
     public void PaymentPolicy_RejectsPaymentBeyondRemainingCommitment()
     {
-        var result = SponsorshipPaymentPolicy.Validate("active", 100m, 90m, 20m);
+        var result = SponsorshipPaymentPolicy.Validate("active", "fixed", 100m, 90m, 20m);
 
         Assert.Equal(SponsorshipPaymentValidation.CommitmentExceeded, result);
     }
@@ -60,7 +60,7 @@ public sealed class SecurityPolicyTests
     [Fact]
     public void PaymentPolicy_AcceptsPaymentWithinRemainingCommitment()
     {
-        var result = SponsorshipPaymentPolicy.Validate("active", 100m, 90m, 10m);
+        var result = SponsorshipPaymentPolicy.Validate("active", "fixed", 100m, 90m, 10m);
 
         Assert.Equal(SponsorshipPaymentValidation.Accepted, result);
     }
@@ -70,5 +70,13 @@ public sealed class SecurityPolicyTests
     {
         Assert.True(SponsorshipPaymentPolicy.IsCommitmentBelowReceived(100m, 110m));
         Assert.False(SponsorshipPaymentPolicy.IsCommitmentBelowReceived(100m, 100m));
+    }
+
+    [Fact]
+    public void PaymentPolicy_RejectsManualPaymentForPerVisitCampaign()
+    {
+        var result = SponsorshipPaymentPolicy.Validate("active", "per_visit", 0m, 0m, 10m);
+
+        Assert.Equal(SponsorshipPaymentValidation.BillingModeNotEligible, result);
     }
 }

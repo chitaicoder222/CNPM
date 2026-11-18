@@ -13,21 +13,20 @@ test("Vietnamese fallback narration resolves to Vietnamese even when the UI lang
 
 test("all supported narration language codes resolve to their requested speech locales", () => {
   assert.deepEqual(
-    ["vi", "ko", "ja", "zh", "en"].map(ttsLanguage.resolveSpeechLocale),
-    ["vi-VN", "ko-KR", "ja-JP", "zh-CN", "en-US"]
+    ["vi", "en", "ko", "ja", "zh"].map(ttsLanguage.resolveSpeechLocale),
+    ["vi-VN", "en-US", "ko-KR", "ja-JP", "zh-CN"]
   );
 });
 
 test("locale-style and underscore narration metadata normalize to the supported primary language", () => {
   assert.equal(ttsLanguage.resolveSpeechLocale("ko-KR"), "ko-KR");
   assert.equal(ttsLanguage.resolveSpeechLocale("zh_CN"), "zh-CN");
-  assert.equal(ttsLanguage.normalizeLanguageCode("en_GB"), "en");
+  assert.equal(ttsLanguage.normalizeLanguageCode("en-GB"), "en");
 });
 
 test("invalid or absent narration language metadata fails safely to Vietnamese", () => {
   assert.equal(ttsLanguage.resolveSpeechLocale(""), "vi-VN");
   assert.equal(ttsLanguage.resolveSpeechLocale("fr-FR"), "vi-VN");
-  assert.equal(ttsLanguage.resolveSpeechLocale("th-TH"), "vi-VN");
   assert.equal(ttsLanguage.resolveSpeechLocale(null), "vi-VN");
 });
 

@@ -59,6 +59,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .section-heading h2 { margin: .25rem 0 0; font-family: var(--font-ui); font-size: clamp(1.8rem, 3vw, 2.5rem); font-weight: 700; line-height: 1.18; overflow-wrap: anywhere; }
 .status-line { min-height: 1.4rem; color: var(--color-ink-muted); font-size: .9rem; }
 .status-line.error { color: var(--color-error); }
+.status-line.warning { color: var(--color-romance-red); }
 .status-line.success { color: var(--color-success); }
 
 .map-card, .narration-panel, .poi-card, .admin-card { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow); }
@@ -161,7 +162,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .ad-item-fallback, .ad-placeholder { display: grid; min-height: 8.4rem; place-items: center; border: 1px dashed color-mix(in srgb, var(--color-gold-highlight) 76%, var(--color-champagne-silk)); border-radius: .7rem; padding: .75rem; color: var(--color-espresso-brown); background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--color-champagne-silk) 62%, white), color-mix(in srgb, var(--color-champagne-silk) 62%, white) .5rem, color-mix(in srgb, var(--color-champagne-silk) 90%, white) .5rem, color-mix(in srgb, var(--color-champagne-silk) 90%, white) 1rem); font-size: .78rem; font-weight: 700; line-height: 1.45; text-align: center; }
 
 .map-card { position: relative; padding: .55rem; }
-#map { height: clamp(22rem, 48vw, 34rem); min-height: 20rem; background: linear-gradient(135deg, color-mix(in srgb, var(--color-champagne-silk) 74%, white), var(--color-surface)); }
+#map { height: clamp(22rem, 48vw, 34rem); min-height: 20rem; background: #e5edf2; }
+#map .leaflet-tile-container img { image-rendering: auto; }
+.voice-demo { margin-bottom: clamp(2rem, 5vw, 4rem); border: 1px solid color-mix(in srgb, var(--color-gold-highlight) 56%, var(--color-champagne-silk)); border-radius: var(--radius-lg); padding: clamp(1.1rem, 3vw, 2rem); background: var(--color-surface); box-shadow: var(--shadow); }
+.voice-demo .section-heading { margin-bottom: 1rem; }
+.voice-demo .section-heading p { margin: .35rem 0 0; color: var(--color-ink-muted); }
+.voice-demo-actions { display: flex; flex-wrap: wrap; gap: .7rem; }
+#map.is-using-local-fallback { background: #dbe9ea; }
 .map-notice { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: .55rem .35rem .1rem; color: var(--color-error); font-size: .86rem; line-height: 1.45; }
 .map-retry { border: 1px solid var(--color-gold-highlight); border-radius: .45rem; padding: .35rem .6rem; color: var(--color-espresso-brown); background: var(--color-surface); font-weight: 700; white-space: nowrap; }
 .leaflet-marker-icon.is-selected-poi { filter: drop-shadow(0 0 .4rem var(--color-gold-highlight)) saturate(1.45); transform: translateY(-.15rem); }
@@ -231,10 +238,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .list-button:hover, .list-button:focus-visible { border-color: color-mix(in srgb, var(--color-romance-red) 52%, var(--color-champagne-silk)); background: color-mix(in srgb, var(--color-champagne-silk) 38%, white); }
 .list-button strong { line-height: 1.35; overflow-wrap: anywhere; }
 .list-button .status-line { margin: 0; min-height: 0; font-size: .78rem; line-height: 1.42; }
-#visitTrend, #activeDevices, #poiList, #topicList, #adList, #sponsorList, #agreementList, #rateList { display: grid; gap: .28rem; max-height: 22rem; overflow: auto; overscroll-behavior: contain; padding-right: .15rem; }
+#visitTrend, #activeDevices, #poiList, #topicList, #adList, #sponsorList, #agreementList, #ratePeriodList { display: grid; gap: .28rem; max-height: 22rem; overflow: auto; overscroll-behavior: contain; padding-right: .15rem; }
 .field input[type="checkbox"] { width: auto; min-height: auto; margin-right: .35rem; }
 .field label:has(input[type="checkbox"]) { display: flex; align-items: center; min-height: 2rem; border: 1px solid color-mix(in srgb, var(--color-gold-highlight) 35%, var(--color-champagne-silk)); border-radius: .45rem; padding: .4rem .55rem; background: color-mix(in srgb, var(--color-champagne-silk) 25%, white); }
 .admin-card .status-line { overflow-wrap: anywhere; }
+.admin-card fieldset { min-width: 0; margin: .9rem 0; border: 1px solid color-mix(in srgb, var(--color-gold-highlight) 40%, var(--color-champagne-silk)); border-radius: .65rem; padding: .8rem; }
+.admin-card legend { padding: 0 .35rem; color: var(--color-espresso-brown); font-size: .88rem; font-weight: 800; }
+.compact-form { margin-block: 1rem; }
+.campaign-revenue-panel { margin-top: 1.15rem; border-top: 1px solid color-mix(in srgb, var(--color-gold-highlight) 35%, var(--color-champagne-silk)); padding-top: 1rem; }
+.campaign-revenue-panel h3 { margin: 0; font-family: var(--font-ui); font-size: 1.05rem; }
+.responsive-table { overflow-x: auto; border: 1px solid color-mix(in srgb, var(--color-gold-highlight) 38%, var(--color-champagne-silk)); border-radius: .65rem; }
+.responsive-table table { width: 100%; min-width: 46rem; border-collapse: collapse; background: color-mix(in srgb, var(--color-surface) 94%, var(--color-champagne-silk)); }
+.responsive-table th, .responsive-table td { padding: .7rem .75rem; border-bottom: 1px solid color-mix(in srgb, var(--color-gold-highlight) 24%, var(--color-champagne-silk)); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.responsive-table th { color: var(--color-espresso-brown); font-size: .78rem; font-weight: 800; }
+.responsive-table td { color: var(--color-ink-muted); font-size: .88rem; }
+.responsive-table tr:last-child td { border-bottom: 0; }
 
 @media (max-width: 900px) { .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dashboard-actions { justify-items: start; } .dashboard-actions .status-line { text-align: left; } }
-@media (max-width: 720px) { .admin-page { width: min(100% - 1rem, 92rem); } .dashboard-heading { gap: .75rem; } .dashboard-actions { width: 100%; } .dashboard-actions .button { width: 100%; } .metric-grid { grid-template-columns: 1fr; } .dashboard-filter { grid-template-columns: 1fr; } #visitTrend, #activeDevices, #poiList, #topicList, #adList, #sponsorList, #agreementList, #rateList { max-height: none; } }
+@media (max-width: 720px) { .admin-page { width: min(100% - 1rem, 92rem); } .dashboard-heading { gap: .75rem; } .dashboard-actions { width: 100%; } .dashboard-actions .button { width: 100%; } .metric-grid { grid-template-columns: 1fr; } .dashboard-filter { grid-template-columns: 1fr; } #visitTrend, #activeDevices, #poiList, #topicList, #adList, #sponsorList, #agreementList, #ratePeriodList { max-height: none; } }

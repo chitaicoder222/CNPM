@@ -83,10 +83,9 @@ public sealed class DatabaseInitializationTests
     [Fact]
     public void ExistingSeedData_DoesNotScheduleDuplicateContent()
     {
-        var plan = ContentSeedPlan.Create(hasRevenueRate: true, hasPoi: true);
+        var plan = ContentSeedPlan.Create(hasPoi: true);
 
         Assert.False(plan.HasWork);
-        Assert.False(plan.CreateRevenueRate);
         Assert.False(plan.CreatePois);
     }
 

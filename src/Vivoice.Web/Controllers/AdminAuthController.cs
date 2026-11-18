@@ -63,7 +63,7 @@ public sealed class AdminAuthController(VivoiceDbContext db, IAntiforgery antifo
         return Ok(new { admin = new { admin.Id, admin.DisplayName } });
     }
 
-    [Authorize(Roles = "admin")]
+    [AllowAnonymous]
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
@@ -71,7 +71,7 @@ public sealed class AdminAuthController(VivoiceDbContext db, IAntiforgery antifo
         return NoContent();
     }
 
-    [Authorize(Roles = "admin")]
+    [AllowAnonymous]
     [HttpGet("me")]
     public IActionResult Me() => Ok(new { displayName = User.Identity?.Name });
 }

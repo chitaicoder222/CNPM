@@ -62,6 +62,6 @@ public sealed class AnalyticsTelemetryPolicyTests
         var result = await service.RecordHeartbeatAsync(Guid.NewGuid().ToString("N"), "Googlebot/2.1", CancellationToken.None);
 
         Assert.NotNull(result);
-        Assert.False(result.VisitRecorded);
+        Assert.Equal("Desktop", result.DeviceType);
     }
 }

@@ -1,5 +1,5 @@
 // Purpose: Adds non-sensitive VIVOICE reference content through the explicit database initializer.
-// Responsibility: Seeds an add-only rate/POI/topic/translation baseline without overwriting Administrator-managed content.
+// Responsibility: Seeds an add-only POI/topic/translation baseline without overwriting Administrator-managed content or financial records.
 using Microsoft.EntityFrameworkCore;
 using Vivoice.Web.Data.Entities;
 
@@ -17,21 +17,9 @@ public static class DatabaseSeeder
             .Where(poi => definitionsBySlug.Keys.Contains(poi.Slug))
             .ToListAsync(cancellationToken);
         var poisBySlug = existingPois.ToDictionary(item => item.Slug, StringComparer.Ordinal);
-        var hasRevenueRate = await db.VisitRevenueRates.AnyAsync(cancellationToken);
-
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
-            if (!hasRevenueRate)
-            {
-                db.VisitRevenueRates.Add(new VisitRevenueRate
-                {
-                    Amount = 0.10m,
-                    Currency = "USD",
-                    EffectiveFromUtc = DateTime.UtcNow.Date
-                });
-            }
-
             foreach (var definition in VivoiceBaselineContent.Pois)
             {
                 if (!poisBySlug.TryGetValue(definition.Slug, out var existingPoi))
@@ -62,7 +50,7 @@ public static class DatabaseSeeder
         Slug = definition.Slug,
         Latitude = definition.Latitude,
         Longitude = definition.Longitude,
-        RadiusMeters = definition.RadiusMeters,
+        TriggerRadiusMeters = definition.TriggerRadiusMeters,
         DisplayOrder = definition.DisplayOrder,
         Translations = definition.Translations.Select(pair => new PoiTranslation
         {
@@ -121,9 +109,9 @@ public static class DatabaseSeeder
     }
 }
 
-public readonly record struct ContentSeedPlan(bool CreateRevenueRate, bool CreatePois)
+public readonly record struct ContentSeedPlan(bool CreatePois)
 {
-    public bool HasWork => CreateRevenueRate || CreatePois;
+    public bool HasWork => CreatePois;
 
-    public static ContentSeedPlan Create(bool hasRevenueRate, bool hasPoi) => new(!hasRevenueRate, !hasPoi);
+    public static ContentSeedPlan Create(bool hasPoi) => new(!hasPoi);
 }

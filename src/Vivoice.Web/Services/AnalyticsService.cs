@@ -1,5 +1,5 @@
-// Purpose: Records privacy-minimal anonymous sessions and calculates SQL-backed dashboard metrics.
-// Responsibility: Applies valid-visit rate history on the server and classifies device type without fingerprinting.
+// Purpose: Records privacy-minimal anonymous browser-device activity and calculates SQL-backed dashboard metrics.
+// Responsibility: Separates page visits from heartbeats, snapshots eligible sponsor-campaign revenue and avoids fingerprinting.
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -11,11 +11,11 @@ namespace Vivoice.Web.Services;
 
 public sealed class AnalyticsService(VivoiceDbContext db, IConfiguration configuration)
 {
-    public async Task<HeartbeatResponse?> RecordHeartbeatAsync(string sessionId, string? userAgent, CancellationToken cancellationToken)
+    public async Task<bool> RecordPageVisitAsync(string sessionId, string? userAgent, CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(sessionId, out _))
         {
-            return null;
+            return false;
         }
 
         var nowUtc = DateTime.UtcNow;
@@ -23,11 +23,10 @@ public sealed class AnalyticsService(VivoiceDbContext db, IConfiguration configu
         var device = DeviceClassifier.Describe(userAgent);
         if (device.IsLikelyBot)
         {
-            return new HeartbeatResponse(false, device.DeviceType, ActiveSeconds());
+            return false;
         }
 
         var session = await db.VisitorSessions.FirstOrDefaultAsync(x => x.SessionHash == sessionHash, cancellationToken);
-        var visitRecorded = false;
         if (session is null)
         {
             session = new VisitorSession
@@ -40,20 +39,101 @@ public sealed class AnalyticsService(VivoiceDbContext db, IConfiguration configu
                 LastSeenAtUtc = nowUtc
             };
             db.VisitorSessions.Add(session);
-            var rate = await db.VisitRevenueRates
-                .Where(x => x.EffectiveFromUtc <= nowUtc && (x.EffectiveToUtc == null || x.EffectiveToUtc > nowUtc))
-                .OrderByDescending(x => x.EffectiveFromUtc)
-                .FirstOrDefaultAsync(cancellationToken);
-            db.Visits.Add(new Visit { VisitorSession = session, VisitRevenueRate = rate, AppliedRateAmount = rate?.Amount ?? 0m, Currency = rate?.Currency ?? "USD", OccurredAtUtc = nowUtc, IsValid = true });
-            visitRecorded = true;
         }
         else
         {
             session.LastSeenAtUtc = nowUtc;
         }
 
+        var visit = new Visit
+        {
+            VisitorSession = session,
+            // New visits are priced exclusively through campaign attributions.
+            // Legacy global-rate fields stay at zero to preserve old history without creating new global pricing.
+            AppliedRateAmount = 0m,
+            Currency = "USD",
+            OccurredAtUtc = nowUtc,
+            IsValid = true
+        };
+        db.Visits.Add(visit);
+
+        var candidateRates = await db.SponsorshipAgreementVisitRates.AsNoTracking()
+            .Where(rate => rate.Currency == "USD"
+                && rate.EffectiveFromUtc <= nowUtc
+                && (rate.EffectiveToUtc == null || rate.EffectiveToUtc > nowUtc))
+            .Select(rate => new
+            {
+                rate.Id,
+                rate.SponsorshipAgreementId,
+                rate.IsEnabled,
+                rate.Amount,
+                rate.Currency,
+                rate.EffectiveFromUtc,
+                rate.EffectiveToUtc,
+                AgreementStatus = rate.SponsorshipAgreement.Status,
+                AgreementBillingMode = rate.SponsorshipAgreement.BillingMode,
+                AgreementStartsAtUtc = rate.SponsorshipAgreement.StartsAtUtc,
+                AgreementEndsAtUtc = rate.SponsorshipAgreement.EndsAtUtc,
+                SponsorIsActive = rate.SponsorshipAgreement.Sponsor.IsActive
+            })
+            .ToListAsync(cancellationToken);
+        var eligibleRates = candidateRates
+            .Where(rate => SponsorshipRevenuePolicy.IsEligibleForVisit(
+                rate.SponsorIsActive,
+                rate.AgreementStatus,
+                rate.AgreementBillingMode,
+                rate.AgreementStartsAtUtc,
+                rate.AgreementEndsAtUtc,
+                rate.IsEnabled,
+                rate.Amount,
+                rate.EffectiveFromUtc,
+                rate.EffectiveToUtc,
+                nowUtc))
+            .GroupBy(rate => rate.SponsorshipAgreementId)
+            .Select(group => group
+                .OrderByDescending(rate => rate.EffectiveFromUtc)
+                .ThenByDescending(rate => rate.Id)
+                .First())
+            .ToList();
+
+        foreach (var rate in eligibleRates)
+        {
+            visit.SponsorRevenues.Add(new VisitSponsorshipRevenue
+            {
+                SponsorshipAgreementId = rate.SponsorshipAgreementId,
+                SponsorshipAgreementVisitRateId = rate.Id,
+                AppliedAmount = rate.Amount,
+                Currency = rate.Currency
+            });
+        }
+
         await db.SaveChangesAsync(cancellationToken);
-        return new HeartbeatResponse(visitRecorded, session.DeviceType, ActiveSeconds());
+        return true;
+    }
+
+    public async Task<HeartbeatResponse?> RecordHeartbeatAsync(string sessionId, string? userAgent, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(sessionId, out _))
+        {
+            return null;
+        }
+
+        var device = DeviceClassifier.Describe(userAgent);
+        if (device.IsLikelyBot)
+        {
+            return new HeartbeatResponse(device.DeviceType, ActiveSeconds());
+        }
+
+        var sessionHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sessionId)));
+        var session = await db.VisitorSessions.FirstOrDefaultAsync(x => x.SessionHash == sessionHash, cancellationToken);
+        if (session is null)
+        {
+            return null;
+        }
+
+        session.LastSeenAtUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+        return new HeartbeatResponse(session.DeviceType, ActiveSeconds());
     }
 
     public async Task<bool> RecordAdvertisementEventAsync(long advertisementId, string eventType, string? sessionId, CancellationToken cancellationToken)
@@ -74,32 +154,42 @@ public sealed class AnalyticsService(VivoiceDbContext db, IConfiguration configu
     {
         var activeAfterUtc = DateTime.UtcNow.AddSeconds(-ActiveSeconds());
         var visits = db.Visits.AsNoTracking().Where(x => x.IsValid && x.OccurredAtUtc >= fromUtc && x.OccurredAtUtc <= toUtc);
-        var validVisits = await visits.CountAsync(cancellationToken);
-        var uniqueVisitors = await visits.Select(x => x.VisitorSessionId).Distinct().CountAsync(cancellationToken);
-        var trafficEstimate = await visits.SumAsync(x => (decimal?)x.AppliedRateAmount, cancellationToken) ?? 0m;
+        var visitCount = await visits.CountAsync(cancellationToken);
+        var sponsoredRevenue = db.VisitSponsorshipRevenues.AsNoTracking()
+            .Where(revenue => revenue.Visit.IsValid && revenue.Visit.OccurredAtUtc >= fromUtc && revenue.Visit.OccurredAtUtc <= toUtc);
+        var sponsoredVisitRevenueEstimate = await sponsoredRevenue.SumAsync(x => (decimal?)x.AppliedAmount, cancellationToken) ?? 0m;
+        var legacyVisitRevenueEstimate = await visits
+            .Where(visit => !visit.SponsorRevenues.Any())
+            .SumAsync(visit => (decimal?)visit.AppliedRateAmount, cancellationToken) ?? 0m;
+        var visitRevenueEstimate = sponsoredVisitRevenueEstimate + legacyVisitRevenueEstimate;
+        var unpricedVisitCount = await visits.CountAsync(visit => !visit.SponsorRevenues.Any() && visit.AppliedRateAmount <= 0m, cancellationToken);
         var visitsByDate = (await visits.GroupBy(x => x.OccurredAtUtc.Date)
             .Select(group => new { Date = group.Key, Visits = group.Count() })
             .OrderBy(item => item.Date)
             .ToListAsync(cancellationToken))
             .Select(item => new DailyVisitsDto(DateOnly.FromDateTime(item.Date), item.Visits)).ToList();
-        var activeSessionsQuery = db.VisitorSessions.AsNoTracking()
+        var activeDevicesQuery = db.VisitorSessions.AsNoTracking()
             .Where(x => x.LastSeenAtUtc >= activeAfterUtc && x.Visits.Any(visit => visit.IsValid));
-        var activeByType = await activeSessionsQuery
-            .GroupBy(x => x.DeviceType)
-            .Select(group => new { DeviceType = group.Key, Count = group.Count() })
-            .ToDictionaryAsync(x => x.DeviceType, x => x.Count, cancellationToken);
+        var activeDeviceCount = await activeDevicesQuery.CountAsync(cancellationToken);
         var agreementIds = await db.SponsorshipAgreements.AsNoTracking()
             .Where(x => x.Status != "cancelled" && x.StartsAtUtc <= toUtc && (x.EndsAtUtc == null || x.EndsAtUtc >= fromUtc))
             .Select(x => x.Id).ToListAsync(cancellationToken);
-        var contracted = await db.SponsorshipAgreements.AsNoTracking().Where(x => agreementIds.Contains(x.Id)).SumAsync(x => (decimal?)x.CommittedAmount, cancellationToken) ?? 0m;
-        var received = await db.SponsorshipPayments.AsNoTracking().Where(x => x.ReceivedAtUtc >= fromUtc && x.ReceivedAtUtc <= toUtc).SumAsync(x => (decimal?)x.ReceivedAmount, cancellationToken) ?? 0m;
-        var receivedAgainstAgreements = await db.SponsorshipPayments.AsNoTracking().Where(x => agreementIds.Contains(x.SponsorshipAgreementId)).SumAsync(x => (decimal?)x.ReceivedAmount, cancellationToken) ?? 0m;
+        var fixedAgreementIds = await db.SponsorshipAgreements.AsNoTracking()
+            .Where(x => agreementIds.Contains(x.Id) && x.BillingMode == SponsorshipRevenuePolicy.FixedBillingMode)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+        var contracted = await db.SponsorshipAgreements.AsNoTracking()
+            .Where(x => fixedAgreementIds.Contains(x.Id))
+            .SumAsync(x => (decimal?)x.CommittedAmount, cancellationToken) ?? 0m;
+        var fixedPayments = db.SponsorshipPayments.AsNoTracking().Where(x => fixedAgreementIds.Contains(x.SponsorshipAgreementId));
+        var received = await fixedPayments.Where(x => x.ReceivedAtUtc >= fromUtc && x.ReceivedAtUtc <= toUtc).SumAsync(x => (decimal?)x.ReceivedAmount, cancellationToken) ?? 0m;
+        var receivedAgainstFixedAgreements = await fixedPayments.SumAsync(x => (decimal?)x.ReceivedAmount, cancellationToken) ?? 0m;
         var activeSponsors = await db.Sponsors.AsNoTracking().CountAsync(x => x.IsActive, cancellationToken);
         var adEvents = db.AdvertisementEvents.AsNoTracking().Where(x => x.OccurredAtUtc >= fromUtc && x.OccurredAtUtc <= toUtc);
         var impressions = await adEvents.CountAsync(x => x.EventType == "impression", cancellationToken);
         var clicks = await adEvents.CountAsync(x => x.EventType == "click", cancellationToken);
-        var activeSessions = activeByType.Values.Sum();
-        return new DashboardDto(fromUtc, toUtc, validVisits, uniqueVisitors, activeSessions, activeSessions, activeByType, visitsByDate, trafficEstimate, contracted, received, Math.Max(0m, contracted - receivedAgainstAgreements), activeSponsors, impressions, clicks, "USD", ActiveSeconds());
+        var campaignRevenue = await BuildCampaignRevenueAsync(sponsoredRevenue, cancellationToken);
+        return new DashboardDto(fromUtc, toUtc, visitCount, activeDeviceCount, visitsByDate, visitRevenueEstimate, sponsoredVisitRevenueEstimate, legacyVisitRevenueEstimate, unpricedVisitCount, campaignRevenue, contracted, received, Math.Max(0m, contracted - receivedAgainstFixedAgreements), activeSponsors, impressions, clicks, "USD", ActiveSeconds());
     }
 
     public async Task<IReadOnlyList<ActiveDeviceDto>> GetActiveDevicesAsync(CancellationToken cancellationToken)
@@ -113,6 +203,45 @@ public sealed class AnalyticsService(VivoiceDbContext db, IConfiguration configu
     }
 
     private int ActiveSeconds() => AnalyticsWindowPolicy.Normalize(configuration.GetValue<int?>("SessionTracking:ActiveSeconds"));
+
+    private async Task<IReadOnlyList<CampaignRevenueDto>> BuildCampaignRevenueAsync(IQueryable<VisitSponsorshipRevenue> sponsoredRevenue, CancellationToken cancellationToken)
+    {
+        var nowUtc = DateTime.UtcNow;
+        var aggregateByAgreement = await sponsoredRevenue
+            .GroupBy(revenue => revenue.SponsorshipAgreementId)
+            .Select(group => new { AgreementId = group.Key, VisitCount = group.Count(), EstimatedRevenue = group.Sum(item => item.AppliedAmount) })
+            .ToDictionaryAsync(item => item.AgreementId, cancellationToken);
+        var campaigns = await db.SponsorshipAgreements.AsNoTracking()
+            .Where(agreement => agreement.BillingMode == SponsorshipRevenuePolicy.PerVisitBillingMode)
+            .Include(agreement => agreement.Sponsor)
+            .Include(agreement => agreement.VisitRates)
+            .OrderBy(agreement => agreement.Sponsor.Name)
+            .ThenBy(agreement => agreement.CampaignName)
+            .ToListAsync(cancellationToken);
+
+        return campaigns
+            .Select(campaign =>
+            {
+                var currentRate = campaign.VisitRates
+                    .Where(rate => rate.EffectiveFromUtc <= nowUtc && (rate.EffectiveToUtc == null || rate.EffectiveToUtc > nowUtc))
+                    .OrderByDescending(rate => rate.EffectiveFromUtc)
+                    .FirstOrDefault();
+                aggregateByAgreement.TryGetValue(campaign.Id, out var totals);
+                return new CampaignRevenueDto(
+                    campaign.Id,
+                    campaign.SponsorId,
+                    campaign.Sponsor.Name,
+                    campaign.CampaignName,
+                    campaign.BillingMode,
+                    currentRate?.IsEnabled == true ? currentRate.Amount : null,
+                    currentRate?.IsEnabled == true,
+                    totals?.VisitCount ?? 0,
+                    totals?.EstimatedRevenue ?? 0m,
+                    campaign.Currency,
+                    campaign.Status);
+            })
+            .ToList();
+    }
 }
 
 public static class AnalyticsWindowPolicy

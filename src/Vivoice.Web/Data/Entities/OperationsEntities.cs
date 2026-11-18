@@ -1,5 +1,5 @@
-// Purpose: Defines sponsorship, analytics, rate-history and audit entities for VIVOICE operations.
-// Responsibility: Separates traffic estimates from contracted and received sponsorship revenue.
+// Purpose: Defines sponsorship, campaign-pricing, analytics and audit entities for VIVOICE operations.
+// Responsibility: Preserves legacy revenue history while snapshotting new visit revenue per eligible sponsor campaign.
 namespace Vivoice.Web.Data.Entities;
 
 public sealed class Sponsor
@@ -15,6 +15,8 @@ public sealed class SponsorshipAgreement
 {
     public long Id { get; set; }
     public long SponsorId { get; set; }
+    public string CampaignName { get; set; } = string.Empty;
+    public string BillingMode { get; set; } = "fixed";
     public decimal CommittedAmount { get; set; }
     public string Currency { get; set; } = "USD";
     public string Status { get; set; } = "active";
@@ -22,6 +24,7 @@ public sealed class SponsorshipAgreement
     public DateTime? EndsAtUtc { get; set; }
     public Sponsor Sponsor { get; set; } = null!;
     public List<SponsorshipPayment> Payments { get; set; } = [];
+    public List<SponsorshipAgreementVisitRate> VisitRates { get; set; } = [];
 }
 
 public sealed class SponsorshipPayment
@@ -35,11 +38,25 @@ public sealed class SponsorshipPayment
 
 public sealed class VisitRevenueRate
 {
+    // Retained solely for visit history recorded before sponsor-campaign pricing.
     public long Id { get; set; }
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "USD";
     public DateTime EffectiveFromUtc { get; set; }
     public DateTime? EffectiveToUtc { get; set; }
+}
+
+public sealed class SponsorshipAgreementVisitRate
+{
+    public long Id { get; set; }
+    public long SponsorshipAgreementId { get; set; }
+    public bool IsEnabled { get; set; } = true;
+    public decimal Amount { get; set; }
+    public string Currency { get; set; } = "USD";
+    public DateTime EffectiveFromUtc { get; set; }
+    public DateTime? EffectiveToUtc { get; set; }
+    public SponsorshipAgreement SponsorshipAgreement { get; set; } = null!;
+    public List<VisitSponsorshipRevenue> VisitRevenues { get; set; } = [];
 }
 
 public sealed class VisitorSession
@@ -65,6 +82,19 @@ public sealed class Visit
     public bool IsValid { get; set; } = true;
     public VisitorSession VisitorSession { get; set; } = null!;
     public VisitRevenueRate? VisitRevenueRate { get; set; }
+    public List<VisitSponsorshipRevenue> SponsorRevenues { get; set; } = [];
+}
+
+public sealed class VisitSponsorshipRevenue
+{
+    public long Id { get; set; }
+    public long VisitId { get; set; }
+    public long SponsorshipAgreementId { get; set; }
+    public long SponsorshipAgreementVisitRateId { get; set; }
+    public decimal AppliedAmount { get; set; }
+    public string Currency { get; set; } = "USD";
+    public Visit Visit { get; set; } = null!;
+    public SponsorshipAgreementVisitRate SponsorshipAgreementVisitRate { get; set; } = null!;
 }
 
 public sealed class AuditLog

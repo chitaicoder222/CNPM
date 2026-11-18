@@ -224,15 +224,13 @@ namespace Vivoice.Web.Data.Migrations
                         .HasPrecision(9, 6)
                         .HasColumnType("decimal(9,6)");
 
-                    b.Property<double>("RadiusMeters")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("float")
-                        .HasDefaultValue(100.0);
-
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(140)
                         .HasColumnType("nvarchar(140)");
+
+                    b.Property<int>("TriggerRadiusMeters")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
@@ -244,7 +242,7 @@ namespace Vivoice.Web.Data.Migrations
 
                     b.ToTable("Pois", t =>
                         {
-                            t.HasCheckConstraint("CK_Pois_RadiusMeters_Positive", "[RadiusMeters] > 0");
+                            t.HasCheckConstraint("CK_Pois_TriggerRadiusMeters_Positive", "[TriggerRadiusMeters] > 0");
                         });
                 });
 
@@ -342,6 +340,16 @@ namespace Vivoice.Web.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<string>("BillingMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("CampaignName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
                     b.Property<decimal>("CommittedAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -370,6 +378,43 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasIndex("SponsorId");
 
                     b.ToTable("SponsorshipAgreements");
+                });
+
+            modelBuilder.Entity("Vivoice.Web.Data.Entities.SponsorshipAgreementVisitRate", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<DateTime>("EffectiveFromUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EffectiveToUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("SponsorshipAgreementId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SponsorshipAgreementId", "EffectiveFromUtc")
+                        .IsUnique();
+
+                    b.ToTable("SponsorshipAgreementVisitRates");
                 });
 
             modelBuilder.Entity("Vivoice.Web.Data.Entities.SponsorshipPayment", b =>
@@ -501,6 +546,44 @@ namespace Vivoice.Web.Data.Migrations
                     b.ToTable("VisitRevenueRates");
                 });
 
+            modelBuilder.Entity("Vivoice.Web.Data.Entities.VisitSponsorshipRevenue", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("AppliedAmount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<long>("SponsorshipAgreementId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("SponsorshipAgreementVisitRateId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("VisitId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SponsorshipAgreementId");
+
+                    b.HasIndex("SponsorshipAgreementVisitRateId", "SponsorshipAgreementId");
+
+                    b.HasIndex("VisitId", "SponsorshipAgreementId")
+                        .IsUnique();
+
+                    b.ToTable("VisitSponsorshipRevenues");
+                });
+
             modelBuilder.Entity("Vivoice.Web.Data.Entities.VisitorSession", b =>
                 {
                     b.Property<long>("Id")
@@ -550,7 +633,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.Sponsor", "Sponsor")
                         .WithMany()
                         .HasForeignKey("SponsorId")
-                        .OnDelete(DeleteBehavior.ClientNoAction);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Sponsor");
                 });
@@ -560,7 +643,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.Advertisement", "Advertisement")
                         .WithMany("Events")
                         .HasForeignKey("AdvertisementId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Advertisement");
@@ -571,7 +654,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.AdminUser", "AdminUser")
                         .WithMany()
                         .HasForeignKey("AdminUserId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("AdminUser");
@@ -582,7 +665,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.Poi", "Poi")
                         .WithMany("Topics")
                         .HasForeignKey("PoiId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Poi");
@@ -593,7 +676,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.Poi", "Poi")
                         .WithMany("Translations")
                         .HasForeignKey("PoiId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Poi");
@@ -604,10 +687,21 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.Sponsor", "Sponsor")
                         .WithMany("Agreements")
                         .HasForeignKey("SponsorId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Sponsor");
+                });
+
+            modelBuilder.Entity("Vivoice.Web.Data.Entities.SponsorshipAgreementVisitRate", b =>
+                {
+                    b.HasOne("Vivoice.Web.Data.Entities.SponsorshipAgreement", "SponsorshipAgreement")
+                        .WithMany("VisitRates")
+                        .HasForeignKey("SponsorshipAgreementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SponsorshipAgreement");
                 });
 
             modelBuilder.Entity("Vivoice.Web.Data.Entities.SponsorshipPayment", b =>
@@ -615,7 +709,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.SponsorshipAgreement", "SponsorshipAgreement")
                         .WithMany("Payments")
                         .HasForeignKey("SponsorshipAgreementId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("SponsorshipAgreement");
@@ -626,7 +720,7 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.PoiTopic", "PoiTopic")
                         .WithMany("Translations")
                         .HasForeignKey("PoiTopicId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("PoiTopic");
@@ -637,17 +731,37 @@ namespace Vivoice.Web.Data.Migrations
                     b.HasOne("Vivoice.Web.Data.Entities.VisitRevenueRate", "VisitRevenueRate")
                         .WithMany()
                         .HasForeignKey("VisitRevenueRateId")
-                        .OnDelete(DeleteBehavior.ClientNoAction);
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Vivoice.Web.Data.Entities.VisitorSession", "VisitorSession")
                         .WithMany("Visits")
                         .HasForeignKey("VisitorSessionId")
-                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("VisitRevenueRate");
 
                     b.Navigation("VisitorSession");
+                });
+
+            modelBuilder.Entity("Vivoice.Web.Data.Entities.VisitSponsorshipRevenue", b =>
+                {
+                    b.HasOne("Vivoice.Web.Data.Entities.Visit", "Visit")
+                        .WithMany("SponsorRevenues")
+                        .HasForeignKey("VisitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vivoice.Web.Data.Entities.SponsorshipAgreementVisitRate", "SponsorshipAgreementVisitRate")
+                        .WithMany("VisitRevenues")
+                        .HasForeignKey("SponsorshipAgreementVisitRateId", "SponsorshipAgreementId")
+                        .HasPrincipalKey("Id", "SponsorshipAgreementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SponsorshipAgreementVisitRate");
+
+                    b.Navigation("Visit");
                 });
 
             modelBuilder.Entity("Vivoice.Web.Data.Entities.Advertisement", b =>
@@ -675,6 +789,18 @@ namespace Vivoice.Web.Data.Migrations
             modelBuilder.Entity("Vivoice.Web.Data.Entities.SponsorshipAgreement", b =>
                 {
                     b.Navigation("Payments");
+
+                    b.Navigation("VisitRates");
+                });
+
+            modelBuilder.Entity("Vivoice.Web.Data.Entities.SponsorshipAgreementVisitRate", b =>
+                {
+                    b.Navigation("VisitRevenues");
+                });
+
+            modelBuilder.Entity("Vivoice.Web.Data.Entities.Visit", b =>
+                {
+                    b.Navigation("SponsorRevenues");
                 });
 
             modelBuilder.Entity("Vivoice.Web.Data.Entities.VisitorSession", b =>

@@ -17,9 +17,11 @@ public sealed class VivoiceDbContext(DbContextOptions<VivoiceDbContext> options)
     public DbSet<Sponsor> Sponsors => Set<Sponsor>();
     public DbSet<SponsorshipAgreement> SponsorshipAgreements => Set<SponsorshipAgreement>();
     public DbSet<SponsorshipPayment> SponsorshipPayments => Set<SponsorshipPayment>();
+    public DbSet<SponsorshipAgreementVisitRate> SponsorshipAgreementVisitRates => Set<SponsorshipAgreementVisitRate>();
     public DbSet<VisitRevenueRate> VisitRevenueRates => Set<VisitRevenueRate>();
     public DbSet<VisitorSession> VisitorSessions => Set<VisitorSession>();
     public DbSet<Visit> Visits => Set<Visit>();
+    public DbSet<VisitSponsorshipRevenue> VisitSponsorshipRevenues => Set<VisitSponsorshipRevenue>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -36,13 +38,14 @@ public sealed class VivoiceDbContext(DbContextOptions<VivoiceDbContext> options)
 
         modelBuilder.Entity<Poi>(entity =>
         {
-            entity.ToTable(table => table.HasCheckConstraint("CK_Pois_RadiusMeters_Positive", "[RadiusMeters] > 0"));
-            entity.Property(x => x.RadiusMeters).HasDefaultValue(100d);
             entity.HasIndex(x => x.Slug).IsUnique();
             entity.Property(x => x.Slug).HasMaxLength(140);
             entity.Property(x => x.Latitude).HasPrecision(9, 6);
             entity.Property(x => x.Longitude).HasPrecision(9, 6);
+            entity.HasCheckConstraint("CK_Pois_TriggerRadiusMeters_Positive", "[TriggerRadiusMeters] > 0");
             entity.Property(x => x.ImageUrl).HasMaxLength(500);
+            entity.HasMany(x => x.Translations).WithOne(x => x.Poi).HasForeignKey(x => x.PoiId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(x => x.Topics).WithOne(x => x.Poi).HasForeignKey(x => x.PoiId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<PoiTranslation>().HasIndex(x => new { x.PoiId, x.LanguageCode }).IsUnique();
         modelBuilder.Entity<PoiTranslation>().Property(x => x.LanguageCode).HasMaxLength(10);
@@ -50,6 +53,7 @@ public sealed class VivoiceDbContext(DbContextOptions<VivoiceDbContext> options)
         modelBuilder.Entity<PoiTopic>().Property(x => x.Category).HasMaxLength(20);
         modelBuilder.Entity<TopicTranslation>().HasIndex(x => new { x.PoiTopicId, x.LanguageCode }).IsUnique();
         modelBuilder.Entity<TopicTranslation>().Property(x => x.LanguageCode).HasMaxLength(10);
+        modelBuilder.Entity<PoiTopic>().HasMany(x => x.Translations).WithOne(x => x.PoiTopic).HasForeignKey(x => x.PoiTopicId).OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Advertisement>(entity =>
         {
@@ -58,7 +62,7 @@ public sealed class VivoiceDbContext(DbContextOptions<VivoiceDbContext> options)
             entity.Property(x => x.TargetUrl).HasMaxLength(500);
             entity.Property(x => x.Placement).HasMaxLength(10);
             entity.HasIndex(x => new { x.Placement, x.IsActive, x.StartsAtUtc });
-            entity.HasOne(x => x.Sponsor).WithMany().HasForeignKey(x => x.SponsorId);
+            entity.HasOne(x => x.Sponsor).WithMany().HasForeignKey(x => x.SponsorId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<AdvertisementEvent>(entity =>
         {
@@ -66,13 +70,29 @@ public sealed class VivoiceDbContext(DbContextOptions<VivoiceDbContext> options)
             entity.Property(x => x.SessionHash).HasMaxLength(64);
             entity.HasIndex(x => new { x.AdvertisementId, x.OccurredAtUtc });
             entity.HasIndex(x => new { x.EventType, x.OccurredAtUtc });
+            entity.HasOne(x => x.Advertisement).WithMany(x => x.Events).HasForeignKey(x => x.AdvertisementId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Sponsor>().Property(x => x.Name).HasMaxLength(180);
-        modelBuilder.Entity<SponsorshipAgreement>().Property(x => x.CommittedAmount).HasPrecision(18, 2);
-        modelBuilder.Entity<SponsorshipAgreement>().Property(x => x.Currency).HasMaxLength(3);
-        modelBuilder.Entity<SponsorshipAgreement>().Property(x => x.Status).HasMaxLength(30);
+        modelBuilder.Entity<Sponsor>().HasMany(x => x.Agreements).WithOne(x => x.Sponsor).HasForeignKey(x => x.SponsorId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SponsorshipAgreement>(entity =>
+        {
+            entity.Property(x => x.CampaignName).HasMaxLength(160);
+            entity.Property(x => x.BillingMode).HasMaxLength(20);
+            entity.Property(x => x.CommittedAmount).HasPrecision(18, 2);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.Status).HasMaxLength(30);
+        });
         modelBuilder.Entity<SponsorshipPayment>().Property(x => x.ReceivedAmount).HasPrecision(18, 2);
+        modelBuilder.Entity<SponsorshipAgreement>().HasMany(x => x.Payments).WithOne(x => x.SponsorshipAgreement).HasForeignKey(x => x.SponsorshipAgreementId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SponsorshipAgreement>().HasMany(x => x.VisitRates).WithOne(x => x.SponsorshipAgreement).HasForeignKey(x => x.SponsorshipAgreementId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SponsorshipAgreementVisitRate>(entity =>
+        {
+            entity.Property(x => x.Amount).HasPrecision(18, 4);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.HasIndex(x => new { x.SponsorshipAgreementId, x.EffectiveFromUtc }).IsUnique();
+            entity.HasAlternateKey(x => new { x.Id, x.SponsorshipAgreementId });
+        });
         modelBuilder.Entity<VisitRevenueRate>(entity =>
         {
             entity.Property(x => x.Amount).HasPrecision(18, 4);
@@ -94,6 +114,24 @@ public sealed class VivoiceDbContext(DbContextOptions<VivoiceDbContext> options)
             entity.Property(x => x.AppliedRateAmount).HasPrecision(18, 4);
             entity.Property(x => x.Currency).HasMaxLength(3);
             entity.HasIndex(x => new { x.VisitorSessionId, x.OccurredAtUtc });
+            entity.HasOne(x => x.VisitorSession).WithMany(x => x.Visits).HasForeignKey(x => x.VisitorSessionId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.VisitRevenueRate).WithMany().HasForeignKey(x => x.VisitRevenueRateId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<VisitSponsorshipRevenue>(entity =>
+        {
+            entity.Property(x => x.AppliedAmount).HasPrecision(18, 4);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.HasIndex(x => new { x.VisitId, x.SponsorshipAgreementId }).IsUnique();
+            entity.HasIndex(x => x.SponsorshipAgreementId);
+            entity.HasOne(x => x.Visit)
+                .WithMany(x => x.SponsorRevenues)
+                .HasForeignKey(x => x.VisitId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.SponsorshipAgreementVisitRate)
+                .WithMany(x => x.VisitRevenues)
+                .HasForeignKey(x => new { x.SponsorshipAgreementVisitRateId, x.SponsorshipAgreementId })
+                .HasPrincipalKey(x => new { x.Id, x.SponsorshipAgreementId })
+                .OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<AuditLog>(entity =>
         {
@@ -102,13 +140,7 @@ public sealed class VivoiceDbContext(DbContextOptions<VivoiceDbContext> options)
             entity.Property(x => x.EntityId).HasMaxLength(80);
             entity.Property(x => x.SafeDetails).HasMaxLength(1000);
             entity.HasIndex(x => x.OccurredAtUtc);
+            entity.HasOne(x => x.AdminUser).WithMany().HasForeignKey(x => x.AdminUserId).OnDelete(DeleteBehavior.Restrict);
         });
-
-        // Let SQL Server reject parent deletion while references remain. ClientNoAction also
-        // prevents EF from deleting loaded children or silently nulling optional foreign keys.
-        foreach (var foreignKey in modelBuilder.Model.GetEntityTypes().SelectMany(entity => entity.GetForeignKeys()))
-        {
-            foreignKey.DeleteBehavior = DeleteBehavior.ClientNoAction;
-        }
     }
 }
