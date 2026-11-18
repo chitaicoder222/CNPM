@@ -162,6 +162,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .ad-item-fallback, .ad-placeholder { display: grid; min-height: 8.4rem; place-items: center; border: 1px dashed color-mix(in srgb, var(--color-gold-highlight) 76%, var(--color-champagne-silk)); border-radius: .7rem; padding: .75rem; color: var(--color-espresso-brown); background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--color-champagne-silk) 62%, white), color-mix(in srgb, var(--color-champagne-silk) 62%, white) .5rem, color-mix(in srgb, var(--color-champagne-silk) 90%, white) .5rem, color-mix(in srgb, var(--color-champagne-silk) 90%, white) 1rem); font-size: .78rem; font-weight: 700; line-height: 1.45; text-align: center; }
 
 .map-card { position: relative; padding: .55rem; }
+.gps-radius-control { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; margin-top: 1rem; border: 1px solid color-mix(in srgb, var(--color-gold-highlight) 55%, var(--color-champagne-silk)); border-radius: .8rem; padding: .8rem 1rem; background: var(--color-surface); }
+.gps-radius-control label { color: var(--color-espresso-brown); font-weight: 800; }
+.gps-radius-control select { min-width: 7rem; }
+.gps-radius-control .status-line { margin: 0; }
+.gps-radius { pointer-events: none; }
 #map { height: clamp(22rem, 48vw, 34rem); min-height: 20rem; background: #e5edf2; }
 #map .leaflet-tile-container img { image-rendering: auto; }
 .voice-demo { margin-bottom: clamp(2rem, 5vw, 4rem); border: 1px solid color-mix(in srgb, var(--color-gold-highlight) 56%, var(--color-champagne-silk)); border-radius: var(--radius-lg); padding: clamp(1.1rem, 3vw, 2rem); background: var(--color-surface); box-shadow: var(--shadow); }

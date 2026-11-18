@@ -1,149 +1,86 @@
-// Purpose: Renders the public POI catalog and starts narration when GPS enters each POI's configured radius.
-// Responsibility: Keeps user location in the browser; only public POI content is fetched from the API.
+// Purpose: Renders the public VIVOICE catalog, records visitor activity and starts GPS narration.
+// Responsibility: Keeps visitor telemetry private to the server-issued cookie and keeps the user's GPS layer distinct from POIs.
 (() => {
   const el = id => document.getElementById(id);
   const ui = {
     language: el("languageSelect"), status: el("publicStatus"), map: el("map"), grid: el("poiGrid"), topics: el("topicGrid"),
-    heading: el("narrationHeading"), text: el("narrationText"), category: el("narrationCategory"), notice: el("narrationNotice"),
-    speech: el("speechStatus"), pause: el("pauseSpeech"), stop: el("stopSpeech"), replay: el("replaySpeech"), retry: el("retryPublic"), autoplay: el("autoplayToggle"), demoStatus: el("voiceDemoStatus")
+    heading: el("narrationHeading"), text: el("narrationText"), category: el("narrationCategory"), speech: el("speechStatus"),
+    pause: el("pauseSpeech"), stop: el("stopSpeech"), replay: el("replaySpeech"), demoStatus: el("voiceDemoStatus"),
+    gpsLegend: el("gpsLegend"), poiLegend: el("poiLegend"), accuracyLegend: el("accuracyLegend"), gpsRadius: el("gpsRadiusSelect"), gpsRadiusLabel: el("gpsRadiusLabel"), gpsRadiusHelp: el("gpsRadiusHelp")
   };
+  const mapCard = ui.map?.closest(".map-card");
+  const gpsRadiusControl = el("gpsRadiusSelect")?.closest(".gps-radius-control");
+  if (mapCard && gpsRadiusControl) mapCard.append(gpsRadiusControl);
+
   const copy = {
-    vi: { name: "Tiếng Việt", location: "Thuyết minh tự động bằng GPS", waiting: "Cho phép vị trí GPS để tự phát khi bạn đi vào bán kính POI.", tracking: "Đang theo dõi GPS. Vòng tròn xanh là độ chính xác vị trí hiện tại.", denied: "Không thể dùng GPS. Hãy cho phép quyền vị trí trong trình duyệt.", inside: "Bạn đã vào bán kính {name}; đang phát thuyết minh.", noPois: "Chưa có POI công khai.", gpsUnsupported: "Trình duyệt này không hỗ trợ GPS.", radius: "Bán kính tự phát: {radius} m", replay: "Đọc lại", pause: "Tạm dừng", stop: "Dừng" },
-    en: { name: "English", location: "GPS auto narration", waiting: "Allow GPS location to play narration when you enter a POI radius.", tracking: "Tracking GPS. The blue circle shows current location accuracy.", denied: "GPS is unavailable. Allow location permission in your browser.", inside: "You entered the radius for {name}; narration is starting.", noPois: "No public POIs are available.", gpsUnsupported: "This browser does not support GPS.", radius: "Auto-play radius: {radius} m", replay: "Replay", pause: "Pause", stop: "Stop" },
-    ja: { name: "日本語", location: "GPS 自動音声ガイド", waiting: "POI の範囲に入ると音声を再生するため、GPS を許可してください。", tracking: "GPS を追跡中です。青い円は現在位置の精度です。", denied: "GPS を使用できません。ブラウザーで位置情報を許可してください。", inside: "{name} の範囲に入りました。音声ガイドを開始します。", noPois: "公開中の POI はありません。", gpsUnsupported: "このブラウザーは GPS に対応していません。", radius: "自動再生範囲: {radius} m", replay: "もう一度聞く", pause: "一時停止", stop: "停止" },
-    ko: { name: "한국어", location: "GPS 자동 음성 안내", waiting: "POI 반경에 들어가면 음성을 재생할 수 있도록 GPS를 허용해 주세요.", tracking: "GPS를 추적하고 있습니다. 파란 원은 현재 위치의 정확도입니다.", denied: "GPS를 사용할 수 없습니다. 브라우저에서 위치 권한을 허용해 주세요.", inside: "{name} 반경 안에 들어왔습니다. 음성 안내를 시작합니다.", noPois: "공개된 POI가 없습니다.", gpsUnsupported: "이 브라우저는 GPS를 지원하지 않습니다.", radius: "자동 재생 반경: {radius}m", replay: "다시 듣기", pause: "일시 정지", stop: "중지" },
-    zh: { name: "中文", location: "GPS 自动语音导览", waiting: "请允许 GPS 定位，进入 POI 范围时将自动播放导览。", tracking: "正在追踪 GPS。蓝色圆圈表示当前位置精度。", denied: "无法使用 GPS。请在浏览器中允许位置权限。", inside: "您已进入 {name} 的范围，正在播放导览。", noPois: "暂无公开 POI。", gpsUnsupported: "此浏览器不支持 GPS。", radius: "自动播放半径：{radius} 米", replay: "重新播放", pause: "暂停", stop: "停止" }
+    vi: { pageTitle: "VIVOICE — Vietnam Voice", brandTagline: "Vietnam Voice", languages: { vi: "Tiếng Việt", en: "English", ja: "日本語", ko: "한국어", zh: "中文" }, eyebrow: "Hành trình Việt Nam đa ngôn ngữ", heroTitle: "Chạm vào một địa điểm. Lắng nghe một câu chuyện.", heroCopy: "Khám phá văn hóa, hương vị và những hành trình đặc sắc của Việt Nam theo ngôn ngữ của bạn.", heroAction: "Khám phá sáu điểm đến", heroCard: "Bản đồ thật. Nội dung thật. Giọng đọc theo ngôn ngữ nội dung.", mapKicker: "Khám phá", mapTitle: "Sáu điểm đến nổi bật", autoplayKicker: "Tự động phát", autoplayDescription: "Sau thao tác chọn đầu tiên, VIVOICE lần lượt đọc tối đa ba chủ đề của điểm đến.", autoplayOn: "Bật tự động phát", narrationKicker: "Thuyết minh tự động", narrationTitle: "Chọn một chủ đề để bắt đầu", topics: "Chủ đề", narrationEmptyTitle: "Nội dung sẽ xuất hiện tại đây", narrationEmptyText: "Chọn một POI, sau đó chọn chủ đề bạn muốn khám phá.", footer: "Khám phá có trách nhiệm, lắng nghe bằng ngôn ngữ của bạn.", location: "Vị trí của bạn", gpsLegend: "Vị trí GPS của bạn", poiLegend: "Điểm POI", accuracyLegend: "Độ chính xác GPS", waiting: "Cho phép vị trí GPS để tự phát khi bạn đi vào bán kính POI.", tracking: "Đang theo dõi GPS. Chấm xanh là vị trí của bạn; vòng tròn nét đứt là độ chính xác.", denied: "Không thể dùng GPS. Hãy cho phép quyền vị trí trong trình duyệt.", inside: "Bạn đã vào bán kính {name}; đang phát thuyết minh.", noPois: "Chưa có POI công khai.", gpsUnsupported: "Trình duyệt này không hỗ trợ GPS.", radius: "Bán kính tự phát: {radius} m", replay: "Đọc lại", pause: "Tạm dừng", stop: "Dừng", retry: "Thử lại", voiceKicker: "Nghe thử giọng", voiceTitle: "Nghe thử giọng đọc", voiceDescription: "Chọn một ngôn ngữ để nghe bản demo thuyết minh.", playing: "Đang phát: {language}", voiceError: "Không thể phát giọng đọc trên thiết bị này." },
+    en: { pageTitle: "VIVOICE — Vietnam Voice", brandTagline: "Vietnam Voice", languages: { vi: "Vietnamese", en: "English", ja: "Japanese", ko: "Korean", zh: "Chinese" }, eyebrow: "A multilingual journey through Vietnam", heroTitle: "Touch a place. Hear its story.", heroCopy: "Explore Vietnam's culture, flavors and memorable journeys in your language.", heroAction: "Explore six destinations", heroCard: "Real maps. Real content. Narration in the content language.", mapKicker: "Explore", mapTitle: "Featured destinations", autoplayKicker: "Autoplay", autoplayDescription: "After your first selection, VIVOICE reads up to three topics from the destination.", autoplayOn: "Enable autoplay", narrationKicker: "Automatic narration", narrationTitle: "Choose a topic to begin", topics: "Topics", narrationEmptyTitle: "Content will appear here", narrationEmptyText: "Choose a POI, then choose a topic to explore.", footer: "Explore responsibly and listen in your language.", location: "Your location", gpsLegend: "Your GPS location", poiLegend: "POI location", accuracyLegend: "GPS accuracy", waiting: "Allow GPS location to autoplay when you enter a POI radius.", tracking: "GPS tracking is active. The green dot is your location; the dashed circle shows accuracy.", denied: "GPS is unavailable. Allow location permission in your browser.", inside: "You entered {name}'s radius; narration is starting.", noPois: "No public POIs are available.", gpsUnsupported: "This browser does not support GPS.", radius: "Autoplay radius: {radius} m", replay: "Replay", pause: "Pause", stop: "Stop", retry: "Retry", voiceKicker: "Voice preview", voiceTitle: "Narration voice preview", voiceDescription: "Choose a language to hear a narration sample.", playing: "Playing: {language}", voiceError: "This device cannot play the selected voice." },
+    ja: { pageTitle: "VIVOICE — Vietnam Voice", brandTagline: "ベトナムの声", languages: { vi: "ベトナム語", en: "英語", ja: "日本語", ko: "韓国語", zh: "中国語" }, eyebrow: "多言語でめぐるベトナム", heroTitle: "場所に触れて、物語を聴く。", heroCopy: "あなたの言語でベトナムの文化、味、旅を楽しみましょう。", heroAction: "6つの目的地を見る", heroCard: "本物の地図。本物のコンテンツ。内容の言語で案内します。", mapKicker: "探索", mapTitle: "おすすめの目的地", autoplayKicker: "自動再生", autoplayDescription: "最初に選択すると、目的地のトピックを最大3つ読み上げます。", autoplayOn: "自動再生を有効にする", narrationKicker: "自動案内", narrationTitle: "トピックを選択", topics: "トピック", narrationEmptyTitle: "ここに内容が表示されます", narrationEmptyText: "POIを選び、トピックを選択してください。", footer: "責任を持って旅をし、あなたの言語で聴きましょう。", location: "現在地", gpsLegend: "あなたのGPS位置", poiLegend: "POIの位置", accuracyLegend: "GPSの精度", waiting: "POIの範囲に入ったとき自動再生するため、GPSを許可してください。", tracking: "GPSを追跡中です。緑の点が現在地、破線の円が精度です。", denied: "GPSを利用できません。ブラウザーで位置情報を許可してください。", inside: "{name}の範囲に入りました。案内を開始します。", noPois: "公開POIがありません。", gpsUnsupported: "このブラウザーはGPSに対応していません。", radius: "自動再生範囲: {radius} m", replay: "もう一度再生", pause: "一時停止", stop: "停止", retry: "再試行", voiceKicker: "音声プレビュー", voiceTitle: "音声ガイドを試聴", voiceDescription: "言語を選択して音声ガイドのサンプルを聴いてください。", playing: "再生中: {language}", voiceError: "この端末では選択した音声を再生できません。" },
+    ko: { pageTitle: "VIVOICE — Vietnam Voice", brandTagline: "베트남의 목소리", languages: { vi: "베트남어", en: "영어", ja: "일본어", ko: "한국어", zh: "중국어" }, eyebrow: "다국어로 만나는 베트남", heroTitle: "장소를 누르고 이야기를 들어보세요.", heroCopy: "원하는 언어로 베트남의 문화와 맛, 여행을 만나보세요.", heroAction: "여섯 목적지 탐색", heroCard: "실제 지도와 콘텐츠, 콘텐츠 언어로 제공되는 안내.", mapKicker: "탐색", mapTitle: "추천 목적지", autoplayKicker: "자동 재생", autoplayDescription: "처음 선택하면 목적지의 주제를 최대 세 개까지 읽어줍니다.", autoplayOn: "자동 재생 켜기", narrationKicker: "자동 안내", narrationTitle: "주제를 선택하세요", topics: "주제", narrationEmptyTitle: "여기에 콘텐츠가 표시됩니다", narrationEmptyText: "POI를 선택한 다음 주제를 선택하세요.", footer: "책임 있게 탐험하고 원하는 언어로 들어보세요.", location: "현재 위치", gpsLegend: "내 GPS 위치", poiLegend: "POI 위치", accuracyLegend: "GPS 정확도", waiting: "POI 반경에 들어가면 자동 재생하도록 GPS 위치를 허용하세요.", tracking: "GPS를 추적 중입니다. 초록 점은 현재 위치, 점선 원은 정확도입니다.", denied: "GPS를 사용할 수 없습니다. 브라우저에서 위치 권한을 허용하세요.", inside: "{name} 반경에 들어왔습니다. 안내를 시작합니다.", noPois: "공개 POI가 없습니다.", gpsUnsupported: "이 브라우저는 GPS를 지원하지 않습니다.", radius: "자동 재생 반경: {radius} m", replay: "다시 재생", pause: "일시정지", stop: "정지", retry: "다시 시도", voiceKicker: "음성 미리 듣기", voiceTitle: "음성 안내 듣기", voiceDescription: "언어를 선택하여 음성 안내 샘플을 들어보세요.", playing: "재생 중: {language}", voiceError: "이 기기에서는 선택한 음성을 재생할 수 없습니다." },
+    zh: { pageTitle: "VIVOICE — Vietnam Voice", brandTagline: "越南之声", languages: { vi: "越南语", en: "英语", ja: "日语", ko: "韩语", zh: "中文" }, eyebrow: "用多种语言探索越南", heroTitle: "触摸一个地点，聆听它的故事。", heroCopy: "用你的语言探索越南的文化、美食和精彩旅程。", heroAction: "探索六个目的地", heroCard: "真实地图，真实内容，以内容语言进行讲解。", mapKicker: "探索", mapTitle: "精选目的地", autoplayKicker: "自动播放", autoplayDescription: "首次选择后，VIVOICE会依次朗读目的地最多三个主题。", autoplayOn: "开启自动播放", narrationKicker: "自动讲解", narrationTitle: "选择主题开始", topics: "主题", narrationEmptyTitle: "内容将在这里显示", narrationEmptyText: "选择一个POI，然后选择要探索的主题。", footer: "负责任地探索，用你的语言聆听。", location: "你的位置", gpsLegend: "你的GPS位置", poiLegend: "POI位置", accuracyLegend: "GPS精度", waiting: "请允许GPS定位，进入POI范围时自动播放讲解。", tracking: "正在追踪GPS。绿色圆点是你的位置，虚线圆圈表示精度。", denied: "无法使用GPS，请在浏览器中允许定位权限。", inside: "你已进入{name}的范围，讲解即将开始。", noPois: "暂无公开POI。", gpsUnsupported: "此浏览器不支持GPS。", radius: "自动播放半径：{radius}米", replay: "重新播放", pause: "暂停", stop: "停止", retry: "重试", voiceKicker: "语音试听", voiceTitle: "试听语音讲解", voiceDescription: "选择一种语言，试听语音讲解样本。", playing: "正在播放：{language}", voiceError: "此设备无法播放所选语音。" }
   };
   const supportedLanguages = ["vi", "en", "ja", "ko", "zh"];
-  const presentationCopy = Object.freeze({
-    vi: { languages: { vi: "Tiếng Việt", en: "Tiếng Anh", ja: "Tiếng Nhật", ko: "Tiếng Hàn", zh: "Tiếng Trung" }, voiceKicker: "Nghe thử giọng", voiceTitle: "Nghe thử giọng đọc", voiceDescription: "Chọn một ngôn ngữ để nghe bản demo thuyết minh.", playing: "Đang phát: {language}", voiceError: "Không thể phát giọng đọc trên thiết bị này." },
-    en: { languages: { vi: "Vietnamese", en: "English", ja: "Japanese", ko: "Korean", zh: "Chinese" }, voiceKicker: "Voice preview", voiceTitle: "Narration voice preview", voiceDescription: "Choose a language to hear a narration sample.", playing: "Playing: {language}", voiceError: "This device cannot play the selected voice." },
-    ja: { languages: { vi: "ベトナム語", en: "英語", ja: "日本語", ko: "韓国語", zh: "中国語" }, voiceKicker: "音声プレビュー", voiceTitle: "音声ガイドを試聴", voiceDescription: "言語を選択して音声ガイドのサンプルを聞くことができます。", playing: "再生中: {language}", voiceError: "この端末では選択した音声を再生できません。" },
-    ko: { languages: { vi: "베트남어", en: "영어", ja: "일본어", ko: "한국어", zh: "중국어" }, voiceKicker: "음성 미리 듣기", voiceTitle: "음성 안내 들어보기", voiceDescription: "언어를 선택하여 음성 안내 샘플을 들어 보세요.", playing: "재생 중: {language}", voiceError: "이 기기에서는 선택한 음성을 재생할 수 없습니다." },
-    zh: { languages: { vi: "越南语", en: "英语", ja: "日语", ko: "韩语", zh: "中文" }, voiceKicker: "语音试听", voiceTitle: "试听语音导览", voiceDescription: "选择一种语言，试听语音导览样本。", playing: "正在播放：{language}", voiceError: "此设备无法播放所选语音。" }
+  const gpsRadiusCopy = Object.freeze({
+    vi: ["Bán kính GPS của tôi", "Vòng tròn GPS trên bản đồ sẽ đổi theo lựa chọn này."],
+    en: ["My GPS radius", "The GPS circle on the map changes with this selection."],
+    ja: ["GPSの範囲", "地図上のGPS円はこの選択に合わせて変わります。"],
+    ko: ["내 GPS 반경", "지도에서 GPS 원이 선택한 값에 따라 변경됩니다."],
+    zh: ["我的 GPS 半径", "地图上的 GPS 圆圈会根据此选择改变。"]
   });
-  const demoSamples = Object.freeze({
-    vi: "Xin chào. Đây là bản nghe thử giọng thuyết minh VIVOICE bằng tiếng Việt.",
-    en: "Hello. This is a VIVOICE narration voice sample in English.",
-    ja: "こんにちは。これは日本語のVIVOICE音声ガイドのサンプルです。",
-    ko: "안녕하세요. 이것은 한국어 VIVOICE 음성 안내 샘플입니다.",
-    zh: "您好。这是中文 VIVOICE 语音导览试听。"
-  });
+  const languageLabels = Object.freeze({ vi: "Tiếng Việt", en: "English", ja: "日本語", ko: "한국어", zh: "中文" });
+  const demoSamples = Object.freeze({ vi: "Xin chào. Đây là bản nghe thử giọng thuyết minh VIVOICE bằng tiếng Việt.", en: "Hello. This is a VIVOICE narration voice sample in English.", ja: "こんにちは。これは日本語のVIVOICE音声ガイドのサンプルです。", ko: "안녕하세요. 한국어 VIVOICE 음성 안내 샘플입니다.", zh: "您好，这是中文 VIVOICE 语音讲解试听。" });
   let language = supportedLanguages.includes(localStorage.getItem("vivoice_language")) ? localStorage.getItem("vivoice_language") : "vi";
   let pois = [], topics = [], selectedPoiId = null, selectedTopicId = null, narration = null;
-  let map, tileLayer, markers = new Map(), poiRadiusCircles = new Map(), userMarker, userAccuracyCircle, watchId = null, activeUtterance = null;
+  let map, tileLayer, markers = new Map(), poiRadiusCircles = new Map(), userMarker, userAccuracyCircle, userRadiusCircle, watchId = null, activeUtterance = null, heartbeatTimer = null;
+  let gpsRadiusMeters = [50, 100, 200, 500].includes(Number(localStorage.getItem("vivoice_gps_radius"))) ? Number(localStorage.getItem("vivoice_gps_radius")) : 100;
+  const visitorSessionIssuer = window.VivoiceVisitorSession?.createSessionIssuer(async () => { const response = await fetch("/api/public/sessions", { method: "POST", credentials: "same-origin", headers: { Accept: "application/json" } }); if (!response.ok && response.status !== 204) throw new Error(`HTTP ${response.status}`); });
   const enteredPoiIds = new Set();
-
-  const t = key => copy[language][key] || copy.vi[key] || key;
-  const present = key => presentationCopy[language]?.[key] ?? presentationCopy.vi[key];
-  const setStatus = (message, kind = "") => { ui.status.className = `status-line ${kind}`; ui.status.textContent = message; };
-  const api = async path => { const response = await fetch(path, { credentials: "same-origin", headers: { Accept: "application/json" } }); if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.message || `HTTP ${response.status}`); } return response.status === 204 ? null : response.json(); };
+  const t = key => copy[language]?.[key] ?? copy.vi[key] ?? key;
+  const setStatus = (message, kind = "") => { if (ui.status) { ui.status.className = `status-line ${kind}`; ui.status.textContent = message; } };
+  const api = async (path, options = {}) => { const response = await fetch(path, { credentials: "same-origin", headers: { Accept: "application/json", ...(options.headers || {}) }, ...options }); if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.message || `HTTP ${response.status}`); } return response.status === 204 ? null : response.json(); };
   const validCoordinate = poi => Number.isFinite(Number(poi.latitude)) && Number.isFinite(Number(poi.longitude));
   const distanceMeters = (a, b, c, d) => { const r = 6371000, toRad = value => value * Math.PI / 180; const x = toRad(c - a), y = toRad(d - b); const h = Math.sin(x / 2) ** 2 + Math.cos(toRad(a)) * Math.cos(toRad(c)) * Math.sin(y / 2) ** 2; return 2 * r * Math.asin(Math.sqrt(h)); };
 
-  function initializeMap() {
-    if (!window.L || map) return;
-    map = L.map(ui.map, { scrollWheelZoom: true, zoomControl: true, preferCanvas: true, zoomAnimation: true, fadeAnimation: true }).setView([10.7769, 106.7009], 13);
-    installTiles();
-    window.setTimeout(() => map.invalidateSize({ pan: false, animate: false }), 120);
-  }
-  function installTiles() {
-    tileLayer?.remove();
-    // Standard OpenStreetMap tiles require no vendor key. CARTO returns a key-required image here.
-    tileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 3, subdomains: "abc", attribution: "© OpenStreetMap contributors", keepBuffer: 8, updateWhenIdle: true });
-    tileLayer.addTo(map);
-  }
   function renderLanguage() {
-    ui.language.replaceChildren();
-    supportedLanguages.forEach(code => { const option = document.createElement("option"); option.value = code; option.textContent = present("languages")[code]; ui.language.append(option); });
-    ui.language.value = language; document.documentElement.lang = language;
-    ui.pause.textContent = t("pause"); ui.stop.textContent = t("stop"); ui.replay.textContent = t("replay");
-    el("voiceDemoKicker").textContent = present("voiceKicker"); el("voiceDemoTitle").textContent = present("voiceTitle"); el("voiceDemoDescription").textContent = present("voiceDescription");
-    document.querySelectorAll("[data-demo-language]").forEach(button => { button.textContent = present("languages")[button.dataset.demoLanguage]; });
+    const selected = copy[language]; ui.language.replaceChildren();
+    supportedLanguages.forEach(code => { const option = document.createElement("option"); option.value = code; option.textContent = languageLabels[code]; option.selected = code === language; ui.language.append(option); });
+    document.documentElement.lang = language; document.title = selected.pageTitle;
+    const brandTagline = document.querySelector?.(".brand-tagline"); if (brandTagline) brandTagline.textContent = selected.brandTagline;
+    document.querySelectorAll("[data-i18n]").forEach(node => { const key = node.dataset.i18n; if (selected[key]) node.textContent = selected[key]; });
+    ui.language.setAttribute("aria-label", selected.languages[language]); ui.map?.setAttribute("aria-label", selected.mapTitle);
+    if (!document.getElementById("gpsLegend")) { const legend = document.createElement("div"); legend.className = "map-legend"; legend.innerHTML = '<span><i class="legend-circle legend-user" aria-hidden="true"></i><span id="gpsLegend"></span></span><span><i class="legend-circle legend-poi" aria-hidden="true"></i><span id="poiLegend"></span></span><span><i class="legend-circle legend-accuracy" aria-hidden="true"></i><span id="accuracyLegend"></span></span>'; ui.map?.parentElement?.append(legend); ui.gpsLegend = el("gpsLegend"); ui.poiLegend = el("poiLegend"); ui.accuracyLegend = el("accuracyLegend"); }
+    if (ui.gpsLegend) ui.gpsLegend.textContent = selected.gpsLegend; if (ui.poiLegend) ui.poiLegend.textContent = selected.poiLegend; if (ui.accuracyLegend) ui.accuracyLegend.textContent = selected.accuracyLegend;
+    if (ui.gpsRadius) { const gpsCopy = gpsRadiusCopy[language] || gpsRadiusCopy.vi; ui.gpsRadius.value = String(gpsRadiusMeters); ui.gpsRadiusLabel.textContent = gpsCopy[0]; ui.gpsRadiusHelp.textContent = gpsCopy[1]; }
+    el("voiceDemoKicker").textContent = selected.voiceKicker; el("voiceDemoTitle").textContent = selected.voiceTitle; el("voiceDemoDescription").textContent = selected.voiceDescription;
+    document.querySelectorAll("[data-demo-language]").forEach(button => { button.textContent = selected.languages[button.dataset.demoLanguage]; });
+    userMarker?.bindTooltip(selected.location);
   }
+
+  async function ensureVisitorSession() { return visitorSessionIssuer ? visitorSessionIssuer() : false; }
+  async function sendHeartbeat() { if (document.hidden || !await ensureVisitorSession()) return; try { await api("/api/public/sessions/heartbeat", { method: "POST" }); } catch { /* telemetry must never interrupt the visitor experience */ } }
+  function startVisitorTelemetry() { void sendHeartbeat(); heartbeatTimer = window.setInterval(sendHeartbeat, 30_000); }
+  function stopVisitorTelemetry() { if (heartbeatTimer !== null) window.clearInterval(heartbeatTimer); heartbeatTimer = null; }
+
+  function initializeMap() { if (!window.L || map) return; map = L.map(ui.map, { scrollWheelZoom: true, zoomControl: true, preferCanvas: true, zoomAnimation: true, fadeAnimation: true }).setView([10.7769, 106.7009], 13); tileLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, minZoom: 3, subdomains: "abc", attribution: "© OpenStreetMap contributors", keepBuffer: 8, updateWhenIdle: true }).addTo(map); window.setTimeout(() => map.invalidateSize?.({ pan: false, animate: false }), 120); }
   function renderPois() {
     ui.grid.replaceChildren(); markers.forEach(marker => marker.remove()); poiRadiusCircles.forEach(circle => circle.remove()); markers = new Map(); poiRadiusCircles = new Map();
-    pois.forEach((poi, index) => {
-      const card = document.createElement("button"); card.type = "button"; card.className = "poi-card"; card.setAttribute("aria-pressed", String(poi.id === selectedPoiId));
-      const body = document.createElement("span"); body.className = "poi-card-body";
-      const number = document.createElement("span"); number.className = "number"; number.textContent = String(index + 1).padStart(2, "0");
-      const title = document.createElement("h3"); title.textContent = poi.name;
-      const summary = document.createElement("p"); summary.textContent = poi.summary;
-      const radius = document.createElement("small"); radius.textContent = t("radius").replace("{radius}", poi.triggerRadiusMeters);
-      body.append(number, title, summary, radius); card.append(body); card.addEventListener("click", () => selectPoi(poi.id, true)); ui.grid.append(card);
-      if (map && validCoordinate(poi)) {
-        const point = [poi.latitude, poi.longitude];
-        const circle = L.circle(point, { radius: Number(poi.triggerRadiusMeters) || 100, color: "#2563eb", weight: 2, opacity: .85, fillColor: "#60a5fa", fillOpacity: .14, interactive: false }).addTo(map);
-        const marker = L.marker(point).addTo(map).bindTooltip(`${poi.name} (${poi.triggerRadiusMeters}m)`); marker.on("click", () => selectPoi(poi.id, true)); markers.set(poi.id, marker); poiRadiusCircles.set(poi.id, circle);
-      }
-    });
+    pois.forEach((poi, index) => { const card = document.createElement("button"); card.type = "button"; card.className = "poi-card"; card.setAttribute("aria-pressed", String(poi.id === selectedPoiId)); const body = document.createElement("span"); body.className = "poi-card-body"; const number = document.createElement("span"); number.className = "number"; number.textContent = String(index + 1).padStart(2, "0"); const title = document.createElement("h3"); title.textContent = poi.name; const summary = document.createElement("p"); summary.textContent = poi.summary; const radius = document.createElement("small"); radius.textContent = t("radius").replace("{radius}", poi.triggerRadiusMeters); body.append(number, title, summary, radius); card.append(body); card.addEventListener("click", () => selectPoi(poi.id, true)); ui.grid.append(card); if (map && validCoordinate(poi)) { const point = [poi.latitude, poi.longitude]; const circle = L.circle(point, { radius: Number(poi.triggerRadiusMeters) || 100, className: "poi-radius", color: "#a3272c", weight: 2, opacity: .85, fillColor: "#a3272c", fillOpacity: .14, interactive: false }).addTo(map); const marker = L.marker(point).addTo(map).bindTooltip(poi.name); marker.on("click", () => selectPoi(poi.id, true)); markers.set(poi.id, marker); poiRadiusCircles.set(poi.id, circle); } });
   }
-  function renderTopics() {
-    ui.topics.replaceChildren();
-    topics.forEach(topic => { const button = document.createElement("button"); button.type = "button"; button.className = "topic-card"; button.setAttribute("aria-pressed", String(topic.id === selectedTopicId)); button.textContent = topic.title; button.addEventListener("click", () => selectTopic(topic.id, true)); ui.topics.append(button); });
-  }
-  async function loadPois() {
-    setStatus("Loading...");
-    try {
-      pois = await api(`/api/public/pois?lang=${encodeURIComponent(language)}`);
-      if (!pois.length) { setStatus(t("noPois"), "error"); renderPois(); return; }
-      selectedPoiId = pois[0].id; renderPois(); await selectPoi(selectedPoiId, false); startLocationTracking(); setStatus("");
-    } catch (error) { setStatus(error.message, "error"); }
-  }
-  async function selectPoi(id, focus) {
-    const poi = pois.find(item => item.id === id); if (!poi) return;
-    selectedPoiId = id; selectedTopicId = null; stopSpeech(); renderPois();
-    if (focus && map && validCoordinate(poi)) map.setView([poi.latitude, poi.longitude], 16, { animate: true });
-    try { topics = await api(`/api/public/pois/${id}/topics?lang=${encodeURIComponent(language)}`); renderTopics(); } catch (error) { setStatus(error.message, "error"); }
-  }
-  async function selectTopic(id, speak) {
-    selectedTopicId = id; renderTopics();
-    try {
-      narration = await api(`/api/public/topics/${id}/narration?lang=${encodeURIComponent(language)}`);
-      ui.category.textContent = narration.category; ui.heading.textContent = narration.title; ui.text.textContent = narration.content; ui.replay.classList.remove("hidden");
-      if (speak) speakNarration();
-    } catch (error) { ui.text.textContent = error.message; }
-  }
+  function renderTopics() { ui.topics.replaceChildren(); topics.forEach(topic => { const button = document.createElement("button"); button.type = "button"; button.className = "topic-card"; button.setAttribute("aria-pressed", String(topic.id === selectedTopicId)); button.textContent = topic.title; button.addEventListener("click", () => selectTopic(topic.id, true)); ui.topics.append(button); }); }
+  async function loadPois() { setStatus("Loading..."); try { pois = await api(`/api/public/pois?lang=${encodeURIComponent(language)}`); if (!pois.length) { setStatus(t("noPois"), "error"); renderPois(); return; } selectedPoiId = pois[0].id; renderPois(); await selectPoi(selectedPoiId, false); startLocationTracking(); setStatus(""); } catch (error) { setStatus(error.message, "error"); } }
+  async function selectPoi(id, focus) { const poi = pois.find(item => item.id === id); if (!poi) return; selectedPoiId = id; selectedTopicId = null; stopSpeech(); renderPois(); if (focus && map && validCoordinate(poi)) map.setView([poi.latitude, poi.longitude], 16, { animate: true }); try { topics = await api(`/api/public/pois/${id}/topics?lang=${encodeURIComponent(language)}`); renderTopics(); } catch (error) { setStatus(error.message, "error"); } }
+  async function selectTopic(id, speak) { selectedTopicId = id; renderTopics(); try { narration = await api(`/api/public/topics/${id}/narration?lang=${encodeURIComponent(language)}`); ui.category.textContent = narration.category; ui.heading.textContent = narration.title; ui.text.textContent = narration.content; ui.replay.classList.remove("hidden"); if (speak) speakNarration(); } catch (error) { ui.text.textContent = error.message; } }
   function stopSpeech() { window.speechSynthesis?.cancel(); activeUtterance = null; ui.pause.classList.add("hidden"); ui.stop.classList.add("hidden"); }
-  function applyVoice(utterance, languageCode) {
-    const tts = window.VivoiceTtsLanguage;
-    utterance.lang = tts?.resolveSpeechLocale(languageCode) || "vi-VN";
-    const voice = tts?.chooseVoice(window.speechSynthesis?.getVoices?.() || [], utterance.lang);
-    if (voice) utterance.voice = voice;
-  }
-  function speakNarration() {
-    if (!narration?.content || !("speechSynthesis" in window)) return;
-    stopSpeech(); const utterance = new SpeechSynthesisUtterance(narration.content); applyVoice(utterance, language);
-    utterance.onstart = () => { ui.speech.textContent = ""; ui.pause.classList.remove("hidden"); ui.stop.classList.remove("hidden"); };
-    utterance.onend = () => { activeUtterance = null; ui.pause.classList.add("hidden"); ui.stop.classList.add("hidden"); };
-    activeUtterance = utterance; window.speechSynthesis.speak(utterance);
-  }
-  function speakDemo(languageCode) {
-    if (!("speechSynthesis" in window) || !demoSamples[languageCode]) { if (ui.demoStatus) ui.demoStatus.textContent = t("gpsUnsupported"); return; }
-    stopSpeech(); const utterance = new SpeechSynthesisUtterance(demoSamples[languageCode]); applyVoice(utterance, languageCode);
-    utterance.onstart = () => { if (ui.demoStatus) ui.demoStatus.textContent = present("playing").replace("{language}", present("languages")[languageCode]); };
-    utterance.onend = () => { if (ui.demoStatus) ui.demoStatus.textContent = ""; };
-    utterance.onerror = () => { if (ui.demoStatus) ui.demoStatus.textContent = present("voiceError"); };
-    window.speechSynthesis.speak(utterance);
-  }
-  function onLocation(position) {
-    const { latitude, longitude, accuracy } = position.coords; const point = [latitude, longitude];
-    if (map) { if (!userMarker) userMarker = L.marker(point, { title: "Your location" }).addTo(map); else userMarker.setLatLng(point); if (!userAccuracyCircle) userAccuracyCircle = L.circle(point, { radius: accuracy, color: "#1d4ed8", fillColor: "#60a5fa", fillOpacity: .16, weight: 2 }).addTo(map); else userAccuracyCircle.setLatLng(point).setRadius(accuracy); }
-    setStatus(t("tracking"), "success");
-    const nearby = pois.filter(poi => validCoordinate(poi) && Number(poi.triggerRadiusMeters) > 0 && distanceMeters(latitude, longitude, Number(poi.latitude), Number(poi.longitude)) <= Number(poi.triggerRadiusMeters)).sort((a, b) => Number(a.triggerRadiusMeters) - Number(b.triggerRadiusMeters))[0];
-    if (nearby && !enteredPoiIds.has(nearby.id)) { enteredPoiIds.add(nearby.id); setStatus(t("inside").replace("{name}", nearby.name), "success"); selectPoi(nearby.id, true).then(() => { if (topics[0]) selectTopic(topics[0].id, true); }); }
-  }
-  function startLocationTracking() {
-    if (!navigator.geolocation) { setStatus(t("gpsUnsupported"), "error"); return; }
-    if (watchId !== null) return;
-    setStatus(t("waiting"));
-    watchId = navigator.geolocation.watchPosition(onLocation, () => setStatus(t("denied"), "error"), { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
-  }
+  function speakNarration() { if (!narration?.content || !("speechSynthesis" in window)) return; stopSpeech(); const utterance = new SpeechSynthesisUtterance(narration.content); utterance.lang = window.VivoiceTtsLanguage?.resolveSpeechLocale(language) || "vi-VN"; const voice = window.VivoiceTtsLanguage?.chooseVoice(window.speechSynthesis.getVoices?.() || [], utterance.lang); if (voice) utterance.voice = voice; utterance.onstart = () => { ui.pause.classList.remove("hidden"); ui.stop.classList.remove("hidden"); }; utterance.onend = () => { activeUtterance = null; ui.pause.classList.add("hidden"); ui.stop.classList.add("hidden"); }; activeUtterance = utterance; window.speechSynthesis.speak(utterance); }
+  function speakDemo(code) { if (!("speechSynthesis" in window)) { ui.demoStatus.textContent = t("voiceError"); return; } stopSpeech(); const utterance = new SpeechSynthesisUtterance(demoSamples[code]); utterance.lang = window.VivoiceTtsLanguage?.resolveSpeechLocale(code) || code; utterance.onstart = () => { ui.demoStatus.textContent = t("playing").replace("{language}", copy[language].languages[code]); }; utterance.onend = () => { ui.demoStatus.textContent = ""; }; utterance.onerror = () => { ui.demoStatus.textContent = t("voiceError"); }; window.speechSynthesis.speak(utterance); }
+  function onLocation(position) { const { latitude, longitude, accuracy } = position.coords; const point = [latitude, longitude]; if (map) { if (!userMarker) userMarker = L.circleMarker(point, { radius: 8, className: "user-location", color: "#0f766e", fillColor: "#14b8a6", fillOpacity: 1, weight: 3 }).addTo(map).bindTooltip(t("location")); else userMarker.setLatLng(point); if (!userAccuracyCircle) userAccuracyCircle = L.circle(point, { radius: accuracy, className: "gps-accuracy", color: "#64748b", fillColor: "#94a3b8", fillOpacity: .08, weight: 2, dashArray: "6 5", interactive: false }).addTo(map); else userAccuracyCircle.setLatLng(point).setRadius(accuracy); if (!userRadiusCircle) userRadiusCircle = L.circle(point, { radius: gpsRadiusMeters, className: "gps-radius", color: "#0f766e", fillColor: "#14b8a6", fillOpacity: .06, weight: 2, dashArray: "10 8", interactive: false }).addTo(map); else userRadiusCircle.setLatLng(point).setRadius(gpsRadiusMeters); } setStatus(t("tracking"), "success"); const nearby = pois.filter(poi => validCoordinate(poi) && Number(poi.triggerRadiusMeters) > 0 && distanceMeters(latitude, longitude, Number(poi.latitude), Number(poi.longitude)) <= Number(poi.triggerRadiusMeters)).sort((a, b) => Number(a.triggerRadiusMeters) - Number(b.triggerRadiusMeters))[0]; if (nearby && !enteredPoiIds.has(nearby.id)) { enteredPoiIds.add(nearby.id); setStatus(t("inside").replace("{name}", nearby.name), "success"); selectPoi(nearby.id, true).then(() => { if (topics[0]) selectTopic(topics[0].id, true); }); } }
+  function startLocationTracking() { if (!navigator.geolocation) { setStatus(t("gpsUnsupported"), "error"); return; } if (watchId !== null) return; setStatus(t("waiting")); watchId = navigator.geolocation.watchPosition(onLocation, () => setStatus(t("denied"), "error"), { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }); }
+
   ui.language.addEventListener("change", async () => { language = ui.language.value; localStorage.setItem("vivoice_language", language); renderLanguage(); await loadPois(); });
+  ui.gpsRadius?.addEventListener("change", () => { gpsRadiusMeters = Number(ui.gpsRadius.value); localStorage.setItem("vivoice_gps_radius", String(gpsRadiusMeters)); if (userRadiusCircle) userRadiusCircle.setRadius(gpsRadiusMeters); });
   ui.pause.addEventListener("click", () => { if (!window.speechSynthesis) return; window.speechSynthesis.paused ? window.speechSynthesis.resume() : window.speechSynthesis.pause(); });
   ui.stop.addEventListener("click", stopSpeech); ui.replay.addEventListener("click", speakNarration);
   document.querySelectorAll("[data-demo-language]").forEach(button => button.addEventListener("click", () => speakDemo(button.dataset.demoLanguage)));
-  window.addEventListener("pagehide", () => { if (watchId !== null) navigator.geolocation?.clearWatch(watchId); stopSpeech(); }, { once: true });
-  el("autoplayToggle")?.closest(".autoplay-control")?.remove();
-  renderLanguage(); initializeMap(); void loadPois();
+  window.addEventListener("pagehide", () => { stopVisitorTelemetry(); if (watchId !== null) navigator.geolocation?.clearWatch(watchId); stopSpeech(); }, { once: true });
+  renderLanguage(); initializeMap(); startVisitorTelemetry(); void loadPois();
 })();
